@@ -5,11 +5,20 @@ Multi-language code ingestion pipeline for GitHub repositories.
 Supports Rust, TypeScript/JavaScript, Solidity, and documentation.
 """
 
-from .ingest import IngestionPipeline, IngestionConfig, RepositoryConfig, DEFAULT_REPOSITORIES
+from .ingest import (
+    IngestionPipeline, 
+    IngestionConfig, 
+    RepositoryConfig, 
+    DEFAULT_REPOSITORIES,
+    REPOSITORIES,
+    REPOS_BASE_DIR
+)
 
 __all__ = [
     'IngestionPipeline',
     'IngestionConfig',
     'RepositoryConfig',
     'DEFAULT_REPOSITORIES',
+    'REPOSITORIES',
+    'REPOS_BASE_DIR',
 ]

@@ -25,7 +25,7 @@ import json
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from modules.ingest.core.config import REPOSITORIES, RepoConfig, PRIORITY_HIGH, PRIORITY_MEDIUM, PRIORITY_LOW
+from modules.ingest.core.config import REPOSITORIES, RepoConfig, PRIORITY_HIGH, PRIORITY_MEDIUM, PRIORITY_LOW, REPOS_BASE_DIR
 
 logging.basicConfig(
     level=logging.INFO,
@@ -299,8 +299,8 @@ def main():
     )
     parser.add_argument(
         '--base-dir',
-        default='./repos',
-        help='Base directory for cloning repositories (default: ./repos)'
+        default=REPOS_BASE_DIR,
+        help=f'Base directory for cloning repositories (default: {REPOS_BASE_DIR} from config)'
     )
     parser.add_argument(
         '--force-reclone',

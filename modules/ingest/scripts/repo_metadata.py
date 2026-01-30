@@ -26,7 +26,7 @@ from datetime import datetime
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from modules.ingest.core.config import REPOSITORIES
+from modules.ingest.core.config import REPOSITORIES, REPOS_BASE_DIR
 
 logging.basicConfig(
     level=logging.INFO,
@@ -261,8 +261,8 @@ def main():
     )
     parser.add_argument(
         '--base-dir',
-        default='./repos',
-        help='Base directory containing cloned repos (default: ./repos)'
+        default=REPOS_BASE_DIR,
+        help=f'Base directory containing cloned repos (default: {REPOS_BASE_DIR} from config)'
     )
     parser.add_argument(
         '--repos',

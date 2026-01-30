@@ -3,12 +3,17 @@ Ingestion Pipeline Configuration
 
 Configuration classes and constants for the multi-language ingestion system.
 Following CLAUDE.md: <500 lines, single responsibility (configuration only).
+
+Repository list is loaded from config/repositories.yaml (or REPOSITORIES_CONFIG env var).
 """
 
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 from enum import Enum
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ===== PRIORITY CONSTANTS =====
@@ -64,6 +69,10 @@ class RepoConfig:
 @dataclass
 class IngestionConfig:
     """Configuration for the ingestion pipeline."""
+
+    # Repository base directory (defaults to ./repos, can be overridden)
+    # Note: This is also loaded from repositories.yaml and available as REPOS_BASE_DIR module variable
+    repos_base_dir: str = "./repos"
 
     # Cloudflare AI Gateway + DeepInfra endpoint
     # Format: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/custom-{slug}/v1/openai
@@ -170,285 +179,69 @@ class RepositoryConfig:
         }
 
 
-# Comprehensive repository configurations for all Arda Global repos
-REPOSITORIES = {
-    # === FRONTEND ===
-    "arda-platform": RepoConfig(
-        github_url="https://github.com/ardaglobal/arda-platform",
-        repo_type=RepoType.FRONTEND,
-        languages=[Language.TYPESCRIPT, Language.YAML],
-        components=["pages", "components", "api", "config"],
-        has_helm=True,
-        helm_path="helm/",
-        service_dependencies=["arda-credit", "arda-chat-agent", "fastmcp-proxy"],
-        priority=PRIORITY_HIGH
-    ),
-    
-    "ari-ui": RepoConfig(
-        github_url="https://github.com/ardaglobal/ari-ui",
-        repo_type=RepoType.FRONTEND,
-        languages=[Language.TYPESCRIPT, Language.YAML],
-        components=["bot", "handlers", "config"],
-        has_helm=True,
-        service_dependencies=["arda-chat-agent"],
-        priority=PRIORITY_HIGH
-    ),
-    
-    "arda-homepage": RepoConfig(
-        github_url="https://github.com/ardaglobal/arda-homepage",
-        repo_type=RepoType.FRONTEND,
-        languages=[Language.TYPESCRIPT, Language.YAML],
-        components=["pages", "components"],
-        has_helm=False,
-        priority=PRIORITY_MEDIUM
-    ),
-    
-    # === BACKEND ===
-    "arda-credit": RepoConfig(
-        github_url="https://github.com/ardaglobal/arda-credit",
-        repo_type=RepoType.BACKEND,
-        languages=[Language.RUST, Language.YAML, Language.HELM],
-        components=["api", "lib", "db", "scripts", "helm"],
-        has_helm=True,
-        helm_path="helm/",
-        service_dependencies=[],
-        exposes_apis=True,
-        api_base_path="/api/credit",
-        priority=PRIORITY_HIGH
-    ),
-    
-    # === MIDDLEWARE ===
-    "arda-chat-agent": RepoConfig(
-        github_url="https://github.com/ardaglobal/arda-chat-agent",
-        repo_type=RepoType.MIDDLEWARE,
-        languages=[Language.TYPESCRIPT, Language.PYTHON, Language.YAML, Language.HELM],
-        components=["agent", "api", "config"],
-        has_helm=True,
-        helm_path="helm/",
-        service_dependencies=["arda-credit", "fastmcp-proxy"],
-        exposes_apis=True,
-        priority=PRIORITY_HIGH
-    ),
-    
-    "arda-ingest": RepoConfig(
-        github_url="https://github.com/ardaglobal/arda-ingest",
-        repo_type=RepoType.MIDDLEWARE,
-        languages=[Language.PYTHON, Language.RUST, Language.YAML, Language.HELM],
-        components=["ingest", "processors", "config"],
-        has_helm=True,
-        helm_path="helm/",
-        service_dependencies=["arda-knowledge-hub"],
-        priority=PRIORITY_HIGH
-    ),
-    
-    "arda-collateral-intel": RepoConfig(
-        github_url="https://github.com/ardaglobal/arda-collateral-intel",
-        repo_type=RepoType.MIDDLEWARE,
-        languages=[Language.PYTHON, Language.RUST, Language.YAML, Language.HELM],
-        components=["api", "lib", "db", "scripts", "helm"],
-        has_helm=True,
-        helm_path="helm/",
-        service_dependencies=[],
-        priority=PRIORITY_HIGH
-    ),
-    
-    "fastmcp-proxy": RepoConfig(
-        github_url="https://github.com/ardaglobal/fastmcp-proxy",
-        repo_type=RepoType.MIDDLEWARE,
-        languages=[Language.PYTHON, Language.YAML, Language.HELM],
-        components=["proxy", "config"],
-        has_helm=True,
-        helm_path="helm/",
-        exposes_apis=True,
-        priority=PRIORITY_HIGH
-    ),
-    
-    # === MCP SERVERS ===
-    "mcp-ardaglobal-code": RepoConfig(
-        github_url="https://github.com/ardaglobal/mcp-ardaglobal-code",
-        repo_type=RepoType.MCP_SERVER,
-        languages=[Language.PYTHON, Language.TYPESCRIPT],
-        components=["server", "tools", "config"],
-        has_helm=False,
-        service_dependencies=["i2p"],
-        priority=PRIORITY_HIGH
-    ),
-    
-    "mcp-arda-api": RepoConfig(
-        github_url="https://github.com/ardaglobal/mcp-arda-api",
-        repo_type=RepoType.MCP_SERVER,
-        languages=[Language.PYTHON, Language.TYPESCRIPT],
-        components=["server", "tools"],
-        service_dependencies=["arda-credit"],
-        priority=PRIORITY_HIGH
-    ),
-    
-    "mcp-arda-vector-documents": RepoConfig(
-        github_url="https://github.com/ardaglobal/mcp-arda-vector-documents",
-        repo_type=RepoType.MCP_SERVER,
-        languages=[Language.PYTHON],
-        components=["server"],
-        has_helm=False,
-        priority=PRIORITY_HIGH
-    ),
-    
-    "mcp-knowledge-graph": RepoConfig(
-        github_url="https://github.com/ardaglobal/mcp-knowledge-graph",
-        repo_type=RepoType.MCP_SERVER,
-        languages=[Language.PYTHON],
-        components=["server"],
-        has_helm=False,
-        priority=PRIORITY_MEDIUM
-    ),
-    
-    "mcp-arda-knowlege-hub": RepoConfig(
-        github_url="https://github.com/ardaglobal/mcp-arda-knowlege-hub",
-        repo_type=RepoType.MCP_SERVER,
-        languages=[Language.PYTHON],
-        components=["server"],
-        service_dependencies=["arda-knowledge-hub"],
-        has_helm=False,
-        priority=PRIORITY_HIGH
-    ),
-    
-    "mcp-sec-edgar": RepoConfig(
-        github_url="https://github.com/ardaglobal/mcp-sec-edgar",
-        repo_type=RepoType.MCP_SERVER,
-        languages=[Language.PYTHON],
-        components=["server"],
-        has_helm=False,
-        priority=PRIORITY_LOW
-    ),
-    
-    "mcp-pyth": RepoConfig(
-        github_url="https://github.com/ardaglobal/mcp-pyth",
-        repo_type=RepoType.MCP_SERVER,
-        languages=[Language.PYTHON],
-        components=["server"],
-        has_helm=False,
-        priority=PRIORITY_LOW
-    ),
-    
-    "mcp-fred": RepoConfig(
-        github_url="https://github.com/ardaglobal/mcp-fred",
-        repo_type=RepoType.MCP_SERVER,
-        languages=[Language.PYTHON],
-        components=["server"],
-        has_helm=False,
-        priority=PRIORITY_LOW
-    ),
-    
-    "mcp-perplexity": RepoConfig(
-        github_url="https://github.com/ardaglobal/mcp-perplexity",
-        repo_type=RepoType.MCP_SERVER,
-        languages=[Language.PYTHON],
-        components=["server"],
-        has_helm=False,
-        priority=PRIORITY_LOW
-    ),
-    
-    "mcp-grok": RepoConfig(
-        github_url="https://github.com/ardaglobal/mcp-grok",
-        repo_type=RepoType.MCP_SERVER,
-        languages=[Language.PYTHON],
-        components=["server"],
-        has_helm=False,
-        priority=PRIORITY_LOW
-    ),
-    
-    # === INFRASTRUCTURE ===
-    "aws-iac": RepoConfig(
-        github_url="https://github.com/ardaglobal/aws-iac",
-        repo_type=RepoType.INFRASTRUCTURE,
-        languages=[Language.TERRAFORM, Language.YAML],
-        components=["modules", "environments"],
-        has_helm=False,
-        priority=PRIORITY_HIGH
-    ),
-    
-    "helm-charts": RepoConfig(
-        github_url="https://github.com/ardaglobal/helm-charts",
-        repo_type=RepoType.INFRASTRUCTURE,
-        languages=[Language.YAML, Language.HELM],
-        components=["charts"],
-        has_helm=True,
-        priority=PRIORITY_HIGH
-    ),
-    
-    "base-containers": RepoConfig(
-        github_url="https://github.com/ardaglobal/base-containers",
-        repo_type=RepoType.INFRASTRUCTURE,
-        languages=[Language.DOCKERFILE, Language.YAML],
-        components=["dockerfiles"],
-        has_helm=False,
-        priority=PRIORITY_LOW
-    ),
-    
-    "local-panel": RepoConfig(
-        github_url="https://github.com/ardaglobal/local-panel",
-        repo_type=RepoType.INFRASTRUCTURE,
-        languages=[Language.YAML],
-        components=["."],  # Index all directories
-        has_helm=False,
-        priority=PRIORITY_LOW
-    ),
-    
-    # === TOOLS ===
-    "i2p": RepoConfig(
-        github_url="https://github.com/ardaglobal/i2p",
-        repo_type=RepoType.TOOL,
-        languages=[Language.PYTHON, Language.YAML],
-        components=["ingest", "core", "config"],
-        has_helm=False,
-        priority=PRIORITY_HIGH
-    ),
-    
-    "qmdb": RepoConfig(
-        github_url="https://github.com/ardaglobal/qmdb",
-        repo_type=RepoType.TOOL,
-        languages=[Language.PYTHON, Language.SQL],
-        components=["src"],
-        has_helm=False,
-        priority=PRIORITY_LOW
-    ),
-    
-    "arda-dev-metrics": RepoConfig(
-        github_url="https://github.com/ardaglobal/arda-dev-metrics",
-        repo_type=RepoType.TOOL,
-        languages=[Language.PYTHON, Language.TYPESCRIPT],
-        components=["frontend", "backend"],
-        has_helm=False,
-        priority=PRIORITY_MEDIUM
-    ),
-    
-    # === DOCUMENTATION ===
-    "docs": RepoConfig(
-        github_url="https://github.com/ardaglobal/docs",
-        repo_type=RepoType.DOCUMENTATION,
-        languages=[Language.MARKDOWN, Language.YAML],
-        components=["guides", "api-docs", "architecture"],
-        has_helm=False,
-        priority=PRIORITY_MEDIUM
-    ),
+# ===== REPOSITORY CONFIGURATION LOADING =====
+# Load repository configurations from YAML file
+# Path: config/repositories.yaml (or REPOSITORIES_CONFIG env var)
 
-    "arda-knowledge-hub": RepoConfig(
-        github_url="https://github.com/ardaglobal/arda-knowledge-hub",
-        repo_type=RepoType.DOCUMENTATION,
-        languages=[Language.PYTHON, Language.TYPESCRIPT, Language.YAML],
-        components=["guides", "api-docs", "architecture"],
-        has_helm=True,
-        priority=PRIORITY_MEDIUM
-    ),
+def _load_repositories_from_config() -> tuple[Dict[str, RepoConfig], Optional[str]]:
+    """
+    Load repositories from YAML config file.
+    
+    Returns:
+        Tuple of (repositories dict, repos_base_dir)
+    """
+    try:
+        # Avoid circular import by importing here
+        from .repository_loader import load_repositories
+        
+        repos, repos_base_dir = load_repositories(fallback_to_defaults=True)
+        return repos, repos_base_dir
+    except Exception as e:
+        logger.error(f"Failed to load repository configuration: {e}")
+        logger.warning("Using in-code fallback configuration")
+        return _get_fallback_repositories(), None
 
-    "aig": RepoConfig(
-        github_url="https://github.com/ardaglobal/aig",
-        repo_type=RepoType.DOCUMENTATION,
-        languages=[Language.MARKDOWN],
-        components=["."],  # Index all markdown content
-        has_helm=False,
-        priority=PRIORITY_HIGH
-    ),
-}
+
+def _get_fallback_repositories() -> Dict[str, RepoConfig]:
+    """
+    Fallback repository configuration in case YAML loading fails.
+    
+    Returns minimal set of repositories for backward compatibility.
+    """
+    return {
+        "arda-platform": RepoConfig(
+            github_url="https://github.com/ardaglobal/arda-platform",
+            repo_type=RepoType.FRONTEND,
+            languages=[Language.TYPESCRIPT, Language.YAML],
+            components=["pages", "components", "api", "config"],
+            has_helm=True,
+            helm_path="helm/",
+            service_dependencies=["arda-credit", "arda-chat-agent", "fastmcp-proxy"],
+            priority=PRIORITY_HIGH
+        ),
+        "arda-credit": RepoConfig(
+            github_url="https://github.com/ardaglobal/arda-credit",
+            repo_type=RepoType.BACKEND,
+            languages=[Language.RUST, Language.YAML, Language.HELM],
+            components=["api", "lib", "db", "scripts", "helm"],
+            has_helm=True,
+            helm_path="helm/",
+            service_dependencies=[],
+            exposes_apis=True,
+            api_base_path="/api/credit",
+            priority=PRIORITY_HIGH
+        ),
+    }
+
+
+# Load repositories from YAML config file
+_LOADED_REPOS, _REPOS_BASE_DIR = _load_repositories_from_config()
+
+# Primary repository configuration (loaded from YAML or fallback)
+REPOSITORIES: Dict[str, RepoConfig] = _LOADED_REPOS
+
+# Repository base directory (loaded from YAML or default)
+REPOS_BASE_DIR: str = _REPOS_BASE_DIR or "./repos"
 
 
 # Legacy default repositories (kept for backward compatibility)
@@ -486,16 +279,24 @@ DEFAULT_REPOSITORIES = [
 ]
 
 
-# Service dependency graph for relationship mapping
-SERVICE_DEPENDENCIES = {
-    "arda-platform": ["arda-credit", "arda-chat-agent", "fastmcp-proxy"],
-    "arda-chat-agent": ["arda-credit", "fastmcp-proxy", "mcp-arda-api"],
-    "ari-ui": ["arda-chat-agent"],
-    "arda-ingest": ["arda-knowledge-hub"],
-    "mcp-ardaglobal-code": ["i2p"],
-    "mcp-arda-api": ["arda-credit"],
-    "mcp-arda-knowlege-hub": ["arda-knowledge-hub"],
-}
+# Service dependency graph for relationship mapping (derived from REPOSITORIES)
+# This is kept for backward compatibility but can be derived dynamically
+def get_service_dependencies() -> Dict[str, List[str]]:
+    """
+    Derive service dependencies from repository configurations.
+    
+    Returns:
+        Dictionary mapping repo_id to list of service dependencies
+    """
+    return {
+        repo_id: repo_config.service_dependencies
+        for repo_id, repo_config in REPOSITORIES.items()
+        if repo_config.service_dependencies
+    }
+
+
+# Static service dependencies (for backward compatibility)
+SERVICE_DEPENDENCIES = get_service_dependencies()
 
 
 # File patterns for indexing by language

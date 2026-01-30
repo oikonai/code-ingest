@@ -1,0 +1,382 @@
+# Repository Configuration for Code Ingestion System
+# This file defines all repositories to be ingested into the vector database.
+#
+# Configuration path can be overridden via REPOSITORIES_CONFIG environment variable.
+# Default location: config/repositories.yaml
+
+# Base directory for cloning repositories (default: ./repos)
+repos_base_dir: ./repos
+
+# Repository definitions
+repositories:
+  # === FRONTEND ===
+  - id: arda-platform
+    github_url: https://github.com/ardaglobal/arda-platform
+    repo_type: frontend
+    languages:
+      - typescript
+      - yaml
+    components:
+      - pages
+      - components
+      - api
+      - config
+    has_helm: true
+    helm_path: helm/
+    service_dependencies:
+      - arda-credit
+      - arda-chat-agent
+      - fastmcp-proxy
+    priority: high
+
+  - id: ari-ui
+    github_url: https://github.com/ardaglobal/ari-ui
+    repo_type: frontend
+    languages:
+      - typescript
+      - yaml
+    components:
+      - bot
+      - handlers
+      - config
+    has_helm: true
+    service_dependencies:
+      - arda-chat-agent
+    priority: high
+
+  - id: arda-homepage
+    github_url: https://github.com/ardaglobal/arda-homepage
+    repo_type: frontend
+    languages:
+      - typescript
+      - yaml
+    components:
+      - pages
+      - components
+    has_helm: false
+    priority: medium
+
+  # === BACKEND ===
+  - id: arda-credit
+    github_url: https://github.com/ardaglobal/arda-credit
+    repo_type: backend
+    languages:
+      - rust
+      - yaml
+      - helm
+    components:
+      - api
+      - lib
+      - db
+      - scripts
+      - helm
+    has_helm: true
+    helm_path: helm/
+    service_dependencies: []
+    exposes_apis: true
+    api_base_path: /api/credit
+    priority: high
+
+  # === MIDDLEWARE ===
+  - id: arda-chat-agent
+    github_url: https://github.com/ardaglobal/arda-chat-agent
+    repo_type: middleware
+    languages:
+      - typescript
+      - python
+      - yaml
+      - helm
+    components:
+      - agent
+      - api
+      - config
+    has_helm: true
+    helm_path: helm/
+    service_dependencies:
+      - arda-credit
+      - fastmcp-proxy
+    exposes_apis: true
+    priority: high
+
+  - id: arda-ingest
+    github_url: https://github.com/ardaglobal/arda-ingest
+    repo_type: middleware
+    languages:
+      - python
+      - rust
+      - yaml
+      - helm
+    components:
+      - ingest
+      - processors
+      - config
+    has_helm: true
+    helm_path: helm/
+    service_dependencies:
+      - arda-knowledge-hub
+    priority: high
+
+  - id: arda-collateral-intel
+    github_url: https://github.com/ardaglobal/arda-collateral-intel
+    repo_type: middleware
+    languages:
+      - python
+      - rust
+      - yaml
+      - helm
+    components:
+      - api
+      - lib
+      - db
+      - scripts
+      - helm
+    has_helm: true
+    helm_path: helm/
+    service_dependencies: []
+    priority: high
+
+  - id: fastmcp-proxy
+    github_url: https://github.com/ardaglobal/fastmcp-proxy
+    repo_type: middleware
+    languages:
+      - python
+      - yaml
+      - helm
+    components:
+      - proxy
+      - config
+    has_helm: true
+    helm_path: helm/
+    exposes_apis: true
+    priority: high
+
+  # === MCP SERVERS ===
+  - id: mcp-ardaglobal-code
+    github_url: https://github.com/ardaglobal/mcp-ardaglobal-code
+    repo_type: mcp_server
+    languages:
+      - python
+      - typescript
+    components:
+      - server
+      - tools
+      - config
+    has_helm: false
+    service_dependencies:
+      - i2p
+    priority: high
+
+  - id: mcp-arda-api
+    github_url: https://github.com/ardaglobal/mcp-arda-api
+    repo_type: mcp_server
+    languages:
+      - python
+      - typescript
+    components:
+      - server
+      - tools
+    service_dependencies:
+      - arda-credit
+    priority: high
+
+  - id: mcp-arda-vector-documents
+    github_url: https://github.com/ardaglobal/mcp-arda-vector-documents
+    repo_type: mcp_server
+    languages:
+      - python
+    components:
+      - server
+    has_helm: false
+    priority: high
+
+  - id: mcp-knowledge-graph
+    github_url: https://github.com/ardaglobal/mcp-knowledge-graph
+    repo_type: mcp_server
+    languages:
+      - python
+    components:
+      - server
+    has_helm: false
+    priority: medium
+
+  - id: mcp-arda-knowlege-hub
+    github_url: https://github.com/ardaglobal/mcp-arda-knowlege-hub
+    repo_type: mcp_server
+    languages:
+      - python
+    components:
+      - server
+    service_dependencies:
+      - arda-knowledge-hub
+    has_helm: false
+    priority: high
+
+  - id: mcp-sec-edgar
+    github_url: https://github.com/ardaglobal/mcp-sec-edgar
+    repo_type: mcp_server
+    languages:
+      - python
+    components:
+      - server
+    has_helm: false
+    priority: low
+
+  - id: mcp-pyth
+    github_url: https://github.com/ardaglobal/mcp-pyth
+    repo_type: mcp_server
+    languages:
+      - python
+    components:
+      - server
+    has_helm: false
+    priority: low
+
+  - id: mcp-fred
+    github_url: https://github.com/ardaglobal/mcp-fred
+    repo_type: mcp_server
+    languages:
+      - python
+    components:
+      - server
+    has_helm: false
+    priority: low
+
+  - id: mcp-perplexity
+    github_url: https://github.com/ardaglobal/mcp-perplexity
+    repo_type: mcp_server
+    languages:
+      - python
+    components:
+      - server
+    has_helm: false
+    priority: low
+
+  - id: mcp-grok
+    github_url: https://github.com/ardaglobal/mcp-grok
+    repo_type: mcp_server
+    languages:
+      - python
+    components:
+      - server
+    has_helm: false
+    priority: low
+
+  # === INFRASTRUCTURE ===
+  - id: aws-iac
+    github_url: https://github.com/ardaglobal/aws-iac
+    repo_type: infrastructure
+    languages:
+      - terraform
+      - yaml
+    components:
+      - modules
+      - environments
+    has_helm: false
+    priority: high
+
+  - id: helm-charts
+    github_url: https://github.com/ardaglobal/helm-charts
+    repo_type: infrastructure
+    languages:
+      - yaml
+      - helm
+    components:
+      - charts
+    has_helm: true
+    priority: high
+
+  - id: base-containers
+    github_url: https://github.com/ardaglobal/base-containers
+    repo_type: infrastructure
+    languages:
+      - dockerfile
+      - yaml
+    components:
+      - dockerfiles
+    has_helm: false
+    priority: low
+
+  - id: local-panel
+    github_url: https://github.com/ardaglobal/local-panel
+    repo_type: infrastructure
+    languages:
+      - yaml
+    components:
+      - "."
+    has_helm: false
+    priority: low
+
+  # === TOOLS ===
+  - id: i2p
+    github_url: https://github.com/ardaglobal/i2p
+    repo_type: tool
+    languages:
+      - python
+      - yaml
+    components:
+      - ingest
+      - core
+      - config
+    has_helm: false
+    priority: high
+
+  - id: qmdb
+    github_url: https://github.com/ardaglobal/qmdb
+    repo_type: tool
+    languages:
+      - python
+      - sql
+    components:
+      - src
+    has_helm: false
+    priority: low
+
+  - id: arda-dev-metrics
+    github_url: https://github.com/ardaglobal/arda-dev-metrics
+    repo_type: tool
+    languages:
+      - python
+      - typescript
+    components:
+      - frontend
+      - backend
+    has_helm: false
+    priority: medium
+
+  # === DOCUMENTATION ===
+  - id: docs
+    github_url: https://github.com/ardaglobal/docs
+    repo_type: documentation
+    languages:
+      - markdown
+      - yaml
+    components:
+      - guides
+      - api-docs
+      - architecture
+    has_helm: false
+    priority: medium
+
+  - id: arda-knowledge-hub
+    github_url: https://github.com/ardaglobal/arda-knowledge-hub
+    repo_type: documentation
+    languages:
+      - python
+      - typescript
+      - yaml
+    components:
+      - guides
+      - api-docs
+      - architecture
+    has_helm: true
+    priority: medium
+
+  - id: aig
+    github_url: https://github.com/ardaglobal/aig
+    repo_type: documentation
+    languages:
+      - markdown
+    components:
+      - "."
+    has_helm: false
+    priority: high

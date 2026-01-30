@@ -82,6 +82,60 @@ make health
 make vector-status
 ```
 
+## ⚙️ Configuring Repositories
+
+The system loads repository configurations from `config/repositories.yaml`. This file defines which repositories to ingest and their properties.
+
+### Repository Configuration File
+
+Edit `config/repositories.yaml` to add, remove, or modify repositories:
+
+```yaml
+repos_base_dir: ./repos
+
+repositories:
+  - id: my-repo
+    github_url: https://github.com/myorg/my-repo
+    repo_type: backend  # frontend|backend|middleware|mcp_server|infrastructure|tool|documentation
+    languages:
+      - rust
+      - typescript
+    components:
+      - api
+      - lib
+    has_helm: true
+    helm_path: helm/
+    service_dependencies:
+      - other-service
+    exposes_apis: true
+    api_base_path: /api/myservice
+    priority: high  # high|medium|low
+```
+
+### Configuration Options
+
+- **repos_base_dir**: Base directory for cloning repositories (default: `./repos`)
+- **id**: Unique identifier for the repository
+- **github_url**: Full GitHub repository URL
+- **repo_type**: Type of repository (affects collection assignment)
+- **languages**: List of languages present in the repo
+- **components**: Key directories/components to index
+- **has_helm**: Whether repo contains Helm charts
+- **helm_path**: Path to Helm charts within repo
+- **service_dependencies**: List of services this repo depends on
+- **exposes_apis**: Whether repo exposes APIs
+- **api_base_path**: Base path for APIs
+- **priority**: Priority level for processing (high|medium|low)
+
+### Environment Variable Override
+
+You can override the config file path:
+
+```bash
+export REPOSITORIES_CONFIG=/path/to/custom-repos.yaml
+make ingest
+```
+
 ## 📁 Project Structure
 
 ```

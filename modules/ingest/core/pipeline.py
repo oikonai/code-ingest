@@ -245,7 +245,7 @@ class IngestionPipeline:
             if isinstance(repo_config, RepoConfig):
                 # New config - check if path exists (convert github_url to local path)
                 repo_name = repo_config.github_url.split('/')[-1]
-                repo_path = Path(f'./repos/{repo_name}')
+                repo_path = Path(self.config.repos_base_dir) / repo_name
                 if not repo_path.exists():
                     logger.warning(f"⚠️ Repository not found: {repo_path}")
                     continue

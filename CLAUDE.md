@@ -173,15 +173,31 @@ class IngestionPipeline:
 
 ### 🎯 Configuration Management
 
+- **Repository configurations** live in `config/repositories.yaml` (not hard-coded in Python)
 - Centralize configuration in dedicated config files
-- Use environment variables for sensitive information
+- Use environment variables for sensitive information and overrides
 - Validate configuration at startup
 - Provide sensible defaults
 
+**Repository configuration example (config/repositories.yaml):**
+```yaml
+repos_base_dir: ./repos
+
+repositories:
+  - id: my-service
+    github_url: https://github.com/myorg/my-service
+    repo_type: backend
+    languages: [rust, yaml]
+    components: [api, lib]
+    priority: high
+```
+
+**Pipeline configuration example:**
 ```python
 @dataclass
 class IngestionConfig:
     """Configuration for ingestion pipeline."""
+    repos_base_dir: str = "./repos"  # Loaded from repositories.yaml
     qdrant_url: str = field(default_factory=lambda: os.getenv("QDRANT_URL"))
     qdrant_api_key: str = field(default_factory=lambda: os.getenv("QDRANT_API_KEY"))
     embedding_backend: str = "cloudflare"  # or "modal"
@@ -193,6 +209,11 @@ class IngestionConfig:
         if not self.qdrant_url or not self.qdrant_api_key:
             raise ValueError("Qdrant configuration required")
 ```
+
+**Key principles:**
+- Never hard-code repository lists in Python - use config/repositories.yaml
+- Environment variable `REPOSITORIES_CONFIG` can override config file path
+- Loader validates config schema and provides clear error messages
 
 ## 🚀 Implementation Checklist
 

@@ -178,8 +178,52 @@ class IngestionConfig:
     documentation_checkpoint_frequency: int = 5
 ```
 
-### RepositoryConfig
+### Repository Configuration
 
+**Repository configurations are now loaded from YAML file:**
+
+- **Config file:** `config/repositories.yaml` (or path from `REPOSITORIES_CONFIG` env var)
+- **Loader module:** `modules.ingest.core.repository_loader`
+- **Loaded into:** `REPOSITORIES` dict in `modules.ingest.core.config`
+
+**RepoConfig** (New format):
+```python
+@dataclass
+class RepoConfig:
+    github_url: str                      # GitHub repository URL
+    repo_type: RepoType                  # Type enum (FRONTEND, BACKEND, etc.)
+    languages: List[Language]            # List of languages in repo
+    components: List[str]                # Key directories to index
+    has_helm: bool = False              # Contains Helm charts
+    helm_path: Optional[str] = None     # Path to Helm charts
+    service_dependencies: List[str]      # Service dependencies
+    exposes_apis: bool = False          # Exposes APIs
+    api_base_path: Optional[str] = None # API base path
+    priority: str = PRIORITY_MEDIUM      # Priority (high|medium|low)
+```
+
+**Example YAML configuration:**
+```yaml
+repos_base_dir: ./repos
+
+repositories:
+  - id: arda-credit
+    github_url: https://github.com/ardaglobal/arda-credit
+    repo_type: backend
+    languages:
+      - rust
+      - yaml
+      - helm
+    components:
+      - api
+      - lib
+      - db
+    has_helm: true
+    helm_path: helm/
+    priority: high
+```
+
+**RepositoryConfig** (Legacy format for backward compatibility):
 ```python
 @dataclass
 class RepositoryConfig:
@@ -187,42 +231,6 @@ class RepositoryConfig:
     repo_id: str            # Unique identifier
     primary_language: str   # Main language (rust, typescript, solidity)
     description: str        # Repository description
-```
-
-**Default Repositories:**
-```python
-DEFAULT_REPOSITORIES = [
-    RepositoryConfig(
-        path='./repos/arda-platform',
-        repo_id='arda-platform',
-        primary_language='typescript',
-        description='Turborepo monorepo: Platform (auth gateway port 3002), Credit App (investment matching port 3000), IDR (document negotiation port 3001), shared UI packages'
-    ),
-    RepositoryConfig(
-        path='./repos/arda-credit',
-        repo_id='arda-credit',
-        primary_language='rust',
-        description='Rust backend with financial APIs, smart contracts, CLI tools'
-    ),
-    RepositoryConfig(
-        path='./repos/arda-knowledge-hub',
-        repo_id='arda-knowledge-hub',
-        primary_language='documentation',
-        description='Central knowledge repository and wiki: research, technical knowledge, AI knowledge graph, domains, concepts'
-    ),
-    RepositoryConfig(
-        path='./repos/arda-chat-agent',
-        repo_id='arda-chat-agent',
-        primary_language='typescript',
-        description='JavaScript/TypeScript chat agent implementation for Arda platform'
-    ),
-    RepositoryConfig(
-        path='./repos/ari-ui',
-        repo_id='ari-ui',
-        primary_language='typescript',
-        description='JavaScript/TypeScript chat bot implementation for Arda platform'
-    )
-]
 ```
 
 ## Methods

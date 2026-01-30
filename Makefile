@@ -1,7 +1,7 @@
 # Code Ingestion System - Multi-Language Vector Database Pipeline
 # Comprehensive Makefile for ingestion capabilities
 
-.PHONY: help install deps setup venv sync test clean ingest ingest-warmup ingest-search vector-status index-check clone-repos clone-repos-medium clone-repos-all collection-cleanup collection-status repo-metadata stats-report health check-env modal-deploy modal-health modal-monitor status info
+.PHONY: help install deps setup venv sync test clean ingest ingest-warmup ingest-search vector-status index-check clone-repos clone-repos-medium clone-repos-all collection-cleanup collection-status repo-metadata stats-report health check-env status info
 
 # Colors for better readability
 YELLOW := \033[33m
@@ -35,11 +35,6 @@ help:
 	@echo "  make collection-status    Get detailed collection statistics"
 	@echo "  make repo-metadata        Capture repository commit metadata"
 	@echo "  make stats-report         Generate comprehensive statistics report"
-	@echo ""
-	@echo "$(BLUE)🚀  Modal & Embedding Services:$(RESET)"
-	@echo "  make modal-deploy          Deploy Qwen3-Embedding-8B service to Modal (L4 GPU)"
-	@echo "  make modal-health          Check Modal embedding service health"
-	@echo "  make modal-monitor         Monitor GPU distribution across containers"
 	@echo ""
 	@echo "$(BLUE)⚙️  System Management:$(RESET)"
 	@echo "  make health           System health check (ingestion + vector search)"
@@ -156,33 +151,6 @@ stats-report:
 	@echo "$(BLUE)📊 Generating statistics report...$(RESET)"
 	@python modules/ingest/scripts/stats_reporter.py --format markdown
 
-# Modal & Embedding Services
-modal-deploy:
-	@echo "$(GREEN)🚀 Deploying TEI Qwen3-Embedding-8B to Modal (L4 GPU - Flash Attention 2)...$(RESET)"
-	modal deploy modules/ingest/services/tei_service.py
-	@echo "$(GREEN)✅ TEI Modal service deployed!$(RESET)"
-	@echo "$(BLUE)📡 Endpoints:$(RESET)"
-	@echo "  Embed: https://ardaglobal--embed.modal.run"
-	@echo "  Health: https://ardaglobal--health.modal.run"
-
-modal-health:
-	@echo "$(BLUE)🏥 Checking TEI Modal embedding service health...$(RESET)"
-	@python -c "import requests; \
-	response = requests.get('https://ardaglobal--health.modal.run'); \
-	data = response.json() if response.status_code == 200 else {}; \
-	print(f'  Status: {data.get(\"status\", \"error\")}'); \
-	print(f'  Model: {data.get(\"model\", \"unknown\")}'); \
-	print(f'  Backend: {data.get(\"backend\", \"unknown\")}'); \
-	info = data.get('tei_info', {}); \
-	print(f'  TEI Model: {info.get(\"model_id\", \"unknown\")}'); \
-	print(f'  Max Input Length: {info.get(\"max_input_length\", \"unknown\")}'); \
-	print(f'  Tokenizer: {info.get(\"tokenizer_name\", \"unknown\")}') if info else None"
-
-modal-monitor:
-	@echo "$(BLUE)📊 Modal GPU distribution monitoring...$(RESET)"
-	@echo "$(YELLOW)Note: GPU monitoring requires active embedding service with metrics$(RESET)"
-	@python -c "print('🔍 Check Modal dashboard for GPU distribution metrics')"
-
 # System Management
 health:
 	@echo "$(BLUE)🩺 Ingestion System Health Check...$(RESET)"
@@ -224,7 +192,7 @@ info:
 	@echo "Features:"
 	@echo "  📂 GitHub repository cloning"
 	@echo "  🔍 Multi-language parsing (Rust, TypeScript, Solidity, Documentation)"
-	@echo "  🧠 Semantic embeddings via Modal TEI or Cloudflare AI Gateway"
+	@echo "  🧠 Semantic embeddings via Cloudflare AI Gateway"
 	@echo "  💾 Qdrant vector database storage"
 	@echo "  🔎 Cross-language semantic search"
 	@echo "  📊 Comprehensive statistics and monitoring"

@@ -19,17 +19,18 @@ This document traces the complete journey of code through the ingestion system, 
                      │
 ┌────────────────────▼────────────────────────────────────────┐
 │ 2. Repository Configuration Loading                         │
-│    from modules.ingest.core.config import REPOSITORIES      │
+│    Source: config/repositories.yaml (or REPOSITORIES_CONFIG env) │
+│    Loader: modules.ingest.core.repository_loader           │
 │                                                             │
-│    REPOSITORIES = {                                         │
-│        "arda-credit": RepoConfig(                           │
-│            github_url="https://github.com/.../arda-credit", │
-│            priority="high",                                 │
-│            languages=["rust"],                              │
-│            components=["api", "program", "contracts"]       │
-│        ),                                                   │
+│    repositories:                                            │
+│      - id: arda-credit                                      │
+│        github_url: https://github.com/.../arda-credit       │
+│        priority: high                                       │
+│        languages: [rust, yaml, helm]                        │
+│        components: [api, lib, db]                           │
 │        ...                                                  │
-│    }                                                        │
+│                                                             │
+│    Loaded into: REPOSITORIES dict (modules.ingest.core.config) │
 └────────────────────┬────────────────────────────────────────┘
                      │
 ┌────────────────────▼────────────────────────────────────────┐
@@ -42,10 +43,11 @@ This document traces the complete journey of code through the ingestion system, 
                      │
 ┌────────────────────▼────────────────────────────────────────┐
 │ 4. Git Clone (repo_cloner.py)                               │
-│    $ git clone --depth 1 {github_url} ./repos/{name}       │
+│    $ git clone --depth 1 {github_url} {repos_base_dir}/{name} │
 │                                                             │
 │    Uses: GITHUB_TOKEN for authentication                    │
-│    Output: ./repos/{repo_name}/                             │
+│    Base dir: {repos_base_dir} from config (default: ./repos) │
+│    Output: {repos_base_dir}/{repo_name}/                    │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ▼
