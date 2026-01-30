@@ -11,7 +11,7 @@ Usage:
     python collection_manager.py cleanup
     python collection_manager.py status
     python collection_manager.py status --format json
-    python collection_manager.py create --collection arda_code_python
+    python collection_manager.py create --collection code_python
 """
 
 import os

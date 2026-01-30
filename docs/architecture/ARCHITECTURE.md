@@ -238,10 +238,10 @@ Code Files → AST Parser → Semantic Chunks → Embeddings → Qdrant Collecti
 **Problem:** Different languages have different semantics
 
 **Solution:** Separate Qdrant collections per language:
-- `arda_code_rust`
-- `arda_code_typescript`
-- `arda_code_solidity`
-- `arda_documentation`
+- `{prefix}_code_rust` (configurable prefix)
+- `{prefix}_code_typescript`
+- `{prefix}_code_solidity`
+- `{prefix}_documentation`
 
 **Rationale:**
 - Language-specific semantic search
@@ -499,7 +499,7 @@ PARSERS = {
 }
 
 # 3. Create Qdrant collection
-collection_name = f"arda_code_mylang"
+collection_name = f"{prefix}_code_mylang"  # prefix from config
 
 # 4. Add to VectorSearchManager collections list
 ```

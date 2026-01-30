@@ -1,5 +1,10 @@
 # Repository Configuration for Code Ingestion System
+# 
+# REPLACE WITH YOUR OWN REPOSITORIES
+#
 # This file defines all repositories to be ingested into the vector database.
+# The entries below are examples showing the schema - replace them with your
+# organization's repositories.
 #
 # Configuration path can be overridden via REPOSITORIES_CONFIG environment variable.
 # Default location: config/repositories.yaml

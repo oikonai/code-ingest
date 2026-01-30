@@ -1,14 +1,20 @@
 # Collections Configuration
 # 
+# CUSTOMIZE THIS FILE FOR YOUR PROJECT/ORGANIZATION
+# 
 # This file defines vector database collection names and aliases used by both
 # the ingestion pipeline (writing) and MCP server (searching).
 #
 # Single source of truth for collection naming to ensure ingest writes to
 # the same collections that MCP searches.
+#
+# Both ingestion (modules/ingest) and MCP server (mcp/) read this file.
+# Override path with COLLECTIONS_CONFIG environment variable if needed.
 
-# Optional prefix for collection names (e.g. "arda" -> arda_code_rust)
-# Set to empty string or omit for no prefix
-collection_prefix: arda
+# Optional prefix for collection names (example: "arda" -> arda_code_rust)
+# CUSTOMIZE: Set to your project/org name, or leave empty for no prefix
+# Example without prefix: collection_prefix: "" gives you "code_rust" instead of "arda_code_rust"
+collection_prefix: arda  # Example value - replace with your prefix
 
 # BY_LANGUAGE: Maps programming languages to collection names
 # Ingest writes code chunks here; MCP uses for search defaults

@@ -177,8 +177,8 @@ code-ingest/
 │           └── 🚀 modal_deploy.py    # Modal deployment orchestrator
 │
 └── repos/                       # Cloned repositories (gitignored)
-    ├── arda-credit/             # Rust blockchain infrastructure
-    ├── arda-platform/           # TypeScript monorepo
+    ├── my-backend/              # Example: your backend service
+    ├── my-frontend/             # Example: your frontend application
     └── ...                      # Additional configured repositories
 ```
 
@@ -281,21 +281,11 @@ MODAL_TOKEN_SECRET=your_modal_token_secret
 GITHUB_TOKEN=your_github_pat_token
 ```
 
-### Repository Configuration
+### Collection Configuration
 
-Edit `modules/ingest/core/config.py` to configure repositories:
+The system uses `config/collections.yaml` to define collection names and prefixes. Both the ingestion pipeline and MCP server read from this file to ensure consistency.
 
-```python
-REPOSITORIES = {
-    "arda-credit": RepoConfig(
-        github_url="https://github.com/ardaglobal/arda-credit",
-        priority="high",
-        languages=["rust"],
-        components=["api", "program", "contracts"]
-    ),
-    # ... add more repositories
-}
-```
+See the [Configuration](#-configuring-repositories) section above for details on repository setup.
 
 ### Vector Database Collections
 
@@ -411,13 +401,16 @@ make stats-report   # Comprehensive ingestion statistics
 - **[`CLAUDE.md`](./CLAUDE.md)** - Development guidelines and coding standards
 - **[`Makefile`](./Makefile)** - Complete command reference with examples
 
-## 🔗 Related Projects
+## 🔗 Related Technologies
 
-- **Arda Credit** - Privacy-preserving credit infrastructure (Rust)
-- **Arda Platform** - Monorepo with Platform, Credit App, and IDR (TypeScript)
-- **Arda Knowledge Hub** - Organizational knowledge base and documentation (Markdown/Obsidian)
+This toolkit was built to support multi-repository code search and can be used with any GitHub organization's repositories.
+
+**Example use case:** Configure your organization's repositories in `config/repositories.yaml`, run the ingestion pipeline to vectorize your codebase, and use the MCP server to enable semantic code search in your IDE or AI tools.
+
+**Key technologies:**
 - **Modal Platform** - Serverless GPU infrastructure for embeddings
 - **Qdrant** - Vector database for semantic search
+- **Cloudflare AI Gateway** - Embedding service routing and caching
 
 ## 📄 License
 

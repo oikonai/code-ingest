@@ -524,9 +524,10 @@ class FileProcessor:
         if all_doc_chunks:
             logger.info(f"📊 Processing {len(all_doc_chunks)} documentation chunks for embedding")
             
-            # Determine target collections - documentation always goes to arda_documentation
+            # Determine target collections - documentation always goes to documentation collection
             # Could also add BY_CONCERN logic here if needed
-            target_collections = ['arda_documentation']
+            doc_collection = self.config.collections.get('documentation', 'documentation')
+            target_collections = [doc_collection]
             
             logger.info(f"🎯 Storing to collections: {', '.join(target_collections)}")
             
@@ -554,7 +555,7 @@ class FileProcessor:
             'errors': []
         }
 
-        collection_name = self.config.collections.get('yaml', 'arda_code_yaml')
+        collection_name = self.config.collections.get('yaml', 'code_yaml')
         all_metadata_items = []
 
         for file_path in files:
@@ -610,7 +611,7 @@ class FileProcessor:
             'errors': []
         }
 
-        collection_name = self.config.collections.get('terraform', 'arda_code_terraform')
+        collection_name = self.config.collections.get('terraform', 'code_terraform')
         all_metadata_items = []
 
         for file_path in files:
@@ -666,7 +667,7 @@ class FileProcessor:
             'errors': []
         }
 
-        collection_name = self.config.collections.get('cicd', 'arda_cicd')
+        collection_name = self.config.collections.get('cicd', 'cicd')
         all_metadata_items = []
 
         for file_path in files:
@@ -733,7 +734,7 @@ class FileProcessor:
         """Extract which repository component this file belongs to."""
         path_str = str(file_path)
 
-        # Monorepo app detection (for Turborepo/pnpm workspaces like arda-platform)
+        # Monorepo app detection (for Turborepo/pnpm workspaces)
         if 'apps/platform' in path_str or '/platform/src' in path_str:
             return 'platform'
         elif 'apps/credit-app' in path_str or '/credit-app/src' in path_str:

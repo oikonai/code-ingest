@@ -41,14 +41,14 @@ class SearchQualityValidator:
                 'query': 'react login component',
                 'expected_domains': ['ui', 'auth'],
                 'expected_languages': ['typescript', 'javascript'],
-                'expected_repos': ['arda-credit-app'],
+                'expected_repos': [],  # Config-driven - add your frontend repo ids
                 'avoid_patterns': ['contracts/lib']
             },
             {
                 'query': 'trading interface dashboard',
                 'expected_domains': ['ui', 'finance'],
                 'expected_languages': ['typescript'],
-                'expected_repos': ['arda-credit-app'],
+                'expected_repos': [],  # Config-driven - add your frontend repo ids
                 'avoid_patterns': ['test', 'lib']
             },
             

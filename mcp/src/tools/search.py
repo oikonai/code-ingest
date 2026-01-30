@@ -262,7 +262,7 @@ def register_tools(mcp: FastMCP):
 
         Args:
             queries: List of search queries (max 10)
-            collection_name: Target collection (default: arda_code_rust)
+            collection_name: Target collection (default: from config or first collection)
             limit_per_query: Results per query (1-20, default: 10)
             score_threshold: Minimum similarity (0.0-1.0, default: 0.6)
 
@@ -322,7 +322,7 @@ def register_tools(mcp: FastMCP):
 
         Args:
             query: Natural language search query
-            collections: List of collections to search (default: all Arda code collections)
+            collections: List of collections to search (default: all configured code collections)
             limit_per_collection: Results per collection (1-20, default: 10)
             score_threshold: Minimum similarity (0.0-1.0, default: 0.6)
 

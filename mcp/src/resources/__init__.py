@@ -1,2 +1,2 @@
-"""MCP resource definitions for Arda Credit documentation and catalogs."""
+"""MCP resource definitions for code search documentation and collections."""
 

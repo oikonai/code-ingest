@@ -17,7 +17,7 @@ class ContentFilter:
             r'api/src/',                      # API handlers  
             r'cli/src/',                      # CLI implementation
             r'contracts/src/',                # Core smart contracts (not lib)
-            r'arda-credit-app/src/',          # React frontend
+            r'/src/',                         # Source directories
             r'lib/src/',                      # Internal libraries
         ]
         
@@ -161,7 +161,7 @@ class ContentFilter:
         
         # Repository boost
         repo_boost = 1.0
-        if 'arda-credit-app' in file_path and any(ui_term in content.lower() 
+        if '/src/' in file_path and any(ui_term in content.lower() 
                                                   for ui_term in ['component', 'react', 'tsx', 'jsx']):
             repo_boost = 1.3  # Boost underrepresented React components
         

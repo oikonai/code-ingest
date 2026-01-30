@@ -173,18 +173,19 @@ class DocumentationParser:
     
     def _extract_repo_component(self, file_path: str) -> str:
         """Extract which repository component this doc belongs to"""
-        if 'arda-credit-app' in file_path:
-            return 'frontend'
-        elif 'arda-credit/api' in file_path:
+        # Generic component detection based on path patterns
+        if '/api/' in file_path or '/apis/' in file_path:
             return 'api'
-        elif 'arda-credit/contracts' in file_path:
+        elif '/contracts/' in file_path or '/contract/' in file_path:
             return 'contracts'
-        elif 'arda-credit/docs' in file_path:
+        elif '/docs/' in file_path or '/documentation/' in file_path:
             return 'documentation'
-        elif 'arda-credit/cli' in file_path:
+        elif '/cli/' in file_path or '/commands/' in file_path:
             return 'cli'
-        elif 'arda-credit/db' in file_path:
+        elif '/db/' in file_path or '/database/' in file_path:
             return 'database'
+        elif '/frontend/' in file_path or '/ui/' in file_path or '/app/' in file_path:
+            return 'frontend'
         else:
             return 'core'
     

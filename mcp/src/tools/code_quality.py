@@ -975,7 +975,7 @@ def register_tools(mcp: FastMCP):
         and other naming issues that make code harder for AI to understand.
 
         Args:
-            collection_name: Collection to analyze (arda_code_rust, arda_code_typescript, etc.)
+            collection_name: Collection to analyze (e.g. code_rust, code_typescript, or with prefix)
             scope: Analysis scope - "repository", "file", or "pr"
             file_path: Optional specific file to analyze (when scope="file")
 

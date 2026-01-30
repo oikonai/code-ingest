@@ -1,7 +1,7 @@
 """
-Arda MCP Server - Support Modules
+Code Ingestion MCP Server - Support Modules
 
-This package contains helper modules for the Arda MCP server:
+This package contains helper modules for the MCP server:
 - collections: Collection schema definitions and aliases
 - cache: Query result caching
 - query_router: Intelligent query routing

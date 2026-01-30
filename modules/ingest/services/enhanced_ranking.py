@@ -130,9 +130,11 @@ class EnhancedRanker:
 
         # Factor 4: Repository relevance
         repo_id = payload.get('repo_id', '')
-        if context.is_frontend_query and 'arda-credit-app' in repo_id:
+        # Boost results from repos matching query type (frontend/backend)
+        # Config-driven: use repo_type from repository config if available
+        if context.is_frontend_query and 'frontend' in repo_id.lower():
             score *= 1.5  # Boost frontend repo for UI queries
-        elif context.is_backend_query and 'arda-credit' == repo_id:
+        elif context.is_backend_query and 'backend' in repo_id.lower():
             score *= 1.3  # Boost backend repo for API queries
         
         # Factor 5: Content type relevance

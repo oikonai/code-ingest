@@ -1,7 +1,7 @@
 """
 Vector Ingestion System
 
-Multi-language code ingestion pipeline for Arda repositories.
+Multi-language code ingestion pipeline for configured repositories.
 Supports Rust, TypeScript/JavaScript, Solidity, and documentation.
 """
 

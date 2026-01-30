@@ -23,8 +23,8 @@ This document traces the complete journey of code through the ingestion system, 
 │    Loader: modules.ingest.core.repository_loader           │
 │                                                             │
 │    repositories:                                            │
-│      - id: arda-credit                                      │
-│        github_url: https://github.com/.../arda-credit       │
+│      - id: my-backend                                       │
+│        github_url: https://github.com/myorg/my-backend      │
 │        priority: high                                       │
 │        languages: [rust, yaml, helm]                        │
 │        components: [api, lib, db]                           │
@@ -235,7 +235,7 @@ This document traces the complete journey of code through the ingestion system, 
 │    OR Backend: Modal TEI                                   │
 │    ┌─────────────────────────────────────────┐             │
 │    │ Request:                                │             │
-│    │   POST https://ardaglobal--embed.modal.run           │
+│    │   POST https://your-org--embed.modal.run            │
 │    │   {"inputs": ["code chunk 1", ...]}     │             │
 │    │                                         │             │
 │    │ Response:                               │             │

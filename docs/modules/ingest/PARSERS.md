@@ -131,7 +131,7 @@ pub fn approve_loan(loan_id: LoanId) -> Result<Loan, LoanError> {
 }
 """
 
-result = parser.parse_file("backend/loan_service.rs", content, "arda-credit")
+result = parser.parse_file("backend/loan_service.rs", content, "my-backend")
 
 if result.success:
     for chunk in result.chunks:
@@ -253,7 +253,7 @@ const LoanForm: React.FC<LoanFormProps> = ({ onSubmit }) => {
 export { LoanForm };
 """
 
-result = parser.parse_file("frontend/src/LoanForm.tsx", content, "arda-platform")
+result = parser.parse_file("frontend/src/LoanForm.tsx", content, "my-frontend")
 
 for chunk in result.chunks:
     print(f"{chunk.item_type}: {chunk.item_name}")
@@ -359,7 +359,7 @@ contract Groth16Verifier is IVerifier {
 }
 """
 
-result = parser.parse_file("contracts/verifier.sol", content, "arda-credit")
+result = parser.parse_file("contracts/verifier.sol", content, "my-backend")
 
 for chunk in result.chunks:
     print(f"{chunk.item_type}: {chunk.item_name}")
@@ -487,7 +487,7 @@ else:
 metadata = {
     # Common fields (all parsers)
     'language': str,            # rust, typescript, solidity, markdown
-    'repo_id': str,             # arda-credit, arda-platform, arda-knowledge-hub, arda-chat-agent, ari-ui
+    'repo_id': str,             # my-backend, my-frontend, my-docs, etc. (from config)
     'repo_component': str,      # backend, frontend, contracts, docs
     'business_domain': str,     # finance, auth, ui, contracts, kyc
     'complexity_score': float,  # 0.0-1.0 (based on LOC, nesting)

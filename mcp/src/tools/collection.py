@@ -229,7 +229,7 @@ def register_tools(mcp: FastMCP):
         Get detailed information about a specific Qdrant collection.
 
         Args:
-            collection_name: Name of the collection (e.g., 'arda_code_rust', 'arda_code_typescript')
+            collection_name: Name of the collection (e.g., 'code_rust', 'code_typescript', or with prefix)
 
         Returns:
             Dictionary with collection statistics and configuration

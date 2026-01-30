@@ -42,7 +42,7 @@ def register_tools(mcp: FastMCP):
 
         Returns:
             Dictionary with list of resources, each containing:
-            - uri: Resource URI (e.g., "arda://collections")
+            - uri: Resource URI (e.g., "vector://collections")
             - name: Human-readable name
             - description: What the resource contains
             - mime_type: Content type (typically "text/plain" or "text/markdown")
@@ -128,7 +128,7 @@ def register_tools(mcp: FastMCP):
         Read a specific MCP resource by its URI.
 
         Args:
-            uri: Resource URI (e.g., "arda://collections", "arda://search-tips")
+            uri: Resource URI (e.g., "vector://collections", "vector://search-tips")
 
         Returns:
             Dictionary with:
@@ -137,7 +137,7 @@ def register_tools(mcp: FastMCP):
             - mime_type: Content type
             - error: Error message if resource not found
 
-        Use this to answer: "Show me the collections resource", "What's in arda://dashboard?"
+        Use this to answer: "Show me the collections resource", "What's in vector://search-tips?"
         """
         logger.info(f"📖 Reading resource: {uri}")
 
@@ -173,7 +173,7 @@ def register_tools(mcp: FastMCP):
         """
         List all available pre-configured prompts (search templates).
 
-        Prompts are domain-specific search patterns optimized for Arda Credit codebase.
+        Prompts are domain-specific search patterns for your ingested codebase.
 
         Returns:
             Dictionary with list of prompts, each containing:
@@ -238,7 +238,7 @@ def register_tools(mcp: FastMCP):
                 "example_use": "Find investor portfolio dashboard component"
             },
             {
-                "name": "debug_arda_issue",
+                "name": "debug_issue",
                 "description": "Debug-focused search with lower thresholds for comprehensive results",
                 "parameters": [
                     {
@@ -308,7 +308,7 @@ def register_tools(mcp: FastMCP):
                         "default": "all"
                     }
                 ],
-                "example_use": "Find Kubernetes deployment config for arda-credit"
+                "example_use": "Find Kubernetes deployment config for a service"
             },
             {
                 "name": "audit_security_patterns",
@@ -349,7 +349,7 @@ def register_tools(mcp: FastMCP):
             - instructions: Generated search instructions (what you'd use to search)
             - error: Error message if prompt not found
 
-        Use this to answer: "Show me the deal operations prompt", "What does debug_arda_issue do?"
+        Use this to answer: "Show me the deal operations prompt", "What does debug_issue do?"
         """
         logger.info(f"📝 Getting prompt: {name}")
 
@@ -430,12 +430,12 @@ def register_tools(mcp: FastMCP):
         the searches automatically, returning aggregated results.
 
         Args:
-            name: Prompt name (e.g., "search_deal_operations", "debug_arda_issue")
+            name: Prompt name (e.g., "search_operations", "debug_issue")
             parameters: JSON string with prompt-specific parameters (default: "{}")
                 Examples:
-                - '{"operation_type": "payment"}' for search_deal_operations
-                - '{"issue_description": "deal payment failure"}' for debug_arda_issue
-                - '{"feature_name": "investor portfolio"}' for search_frontend_feature
+                - '{"operation_type": "payment"}' for search_operations
+                - '{"issue_description": "payment failure"}' for debug_issue
+                - '{"feature_name": "user dashboard"}' for search_frontend_feature
                 - '{}' for prompts with no parameters
 
         Returns:
@@ -452,7 +452,7 @@ def register_tools(mcp: FastMCP):
 
         Examples:
             execute_prompt("search_deal_operations", '{"operation_type": "payment"}')
-            execute_prompt("debug_arda_issue", '{"issue_description": "deal payment failure"}')
+            execute_prompt("debug_issue", '{"issue_description": "payment failure"}')
             execute_prompt("search_frontend_feature", '{"feature_name": "investor portfolio"}')
             execute_prompt("search_zkproof_implementation", "{}")
         """
@@ -525,7 +525,7 @@ def register_tools(mcp: FastMCP):
 
             # Parse instructions to extract search operations
             # Look for patterns like:
-            # 1. arda_code_rust collection (limit=20, threshold=0.6)
+            # 1. code_rust collection (limit=20, threshold=0.6)
             # 2. collection_name (limit=X, threshold=Y): query description
             import re
 
@@ -534,7 +534,7 @@ def register_tools(mcp: FastMCP):
 
             if not matches:
                 # Fallback: try to identify collection mentions
-                collection_pattern = r'(arda_\w+)'
+                collection_pattern = r'(\w+_\w+)'  # e.g. code_rust, myproject_code_rust
                 collection_matches = re.findall(collection_pattern, instructions)
 
                 if collection_matches:

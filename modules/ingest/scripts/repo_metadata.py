@@ -10,7 +10,7 @@ Following CLAUDE.md: <500 lines, single responsibility (metadata capture only).
 Usage:
     python repo_metadata.py capture --output json
     python repo_metadata.py capture --format github-actions
-    python repo_metadata.py capture --repos arda-credit arda-platform
+    python repo_metadata.py capture --repos my-backend my-frontend
 """
 
 import os

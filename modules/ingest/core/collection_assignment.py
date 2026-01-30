@@ -21,9 +21,11 @@ class CollectionAssigner:
     Assigns code chunks to multiple collections based on analysis.
     
     Handles three collection types:
-    1. BY_LANGUAGE - Based on programming language (e.g., arda_code_rust)
-    2. BY_SERVICE - Based on repository type (e.g., arda_frontend, arda_backend)
-    3. BY_CONCERN - Based on architectural concern (e.g., arda_api_contracts)
+    1. BY_LANGUAGE - Based on programming language (e.g., code_rust, {prefix}_code_rust)
+    2. BY_SERVICE - Based on repository type (e.g., frontend, backend)
+    3. BY_CONCERN - Based on architectural concern (e.g., api_contracts, deployment)
+    
+    Collection names come from config/collections.yaml.
     """
     
     def __init__(self, config):
@@ -111,7 +113,7 @@ class CollectionAssigner:
         Returns:
             Collection name or None
         """
-        return determine_service_collection(repo_config.repo_type)
+        return determine_service_collection(repo_config.repo_type, self.config.service_collections)
     
     def _get_concern_collections(
         self,
@@ -141,21 +143,26 @@ class CollectionAssigner:
             file_path=file_path,
             language=language,
             item_type=item_type,
-            content=content
+            content=content,
+            concern_collections=self.config.concern_collections
         )
         
         # Additional logic based on repo config
+        # Get collection names from config
+        api_contracts_collection = self.config.concern_collections.get('api_contracts', 'api_contracts')
+        deployment_collection = self.config.concern_collections.get('deployment', 'deployment')
+        
         # If repo has API endpoints, and this is an API file, add to api_contracts
         if repo_config.exposes_apis and repo_config.api_base_path:
             if 'api' in file_path.lower() or 'route' in file_path.lower():
-                if 'arda_api_contracts' not in concerns:
-                    concerns.append('arda_api_contracts')
+                if api_contracts_collection not in concerns:
+                    concerns.append(api_contracts_collection)
         
-        # If repo has Helm charts, deployment files go to arda_deployment
+        # If repo has Helm charts, deployment files go to deployment collection
         if repo_config.has_helm:
             if any(pattern in file_path.lower() for pattern in ['helm', 'chart', 'values']):
-                if 'arda_deployment' not in concerns:
-                    concerns.append('arda_deployment')
+                if deployment_collection not in concerns:
+                    concerns.append(deployment_collection)
         
         return concerns
     

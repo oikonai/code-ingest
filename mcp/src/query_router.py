@@ -219,10 +219,11 @@ class QueryRouter:
             Service name or "unknown"
         """
         # Look for common service names in query
+        # Config-driven: load from repositories.yaml if needed
+        # For now, use generic patterns: frontend, backend, middleware
         services = [
-            "arda-credit", "arda-platform", "arda-chat-agent",
-            "arda-ingest", "fastmcp-proxy", "arda-knowledge-hub",
-            "arda-homepage", "ari-ui"
+            "frontend", "backend", "middleware",
+            "api", "database", "service"
         ]
         
         query_lower = query.lower()
@@ -233,12 +234,12 @@ class QueryRouter:
         # Try to extract after "service" word
         match = re.search(r'(\w+)\s*service', query, re.IGNORECASE)
         if match:
-            return f"arda-{match.group(1)}"
+            return match.group(1)
         
-        # Try to find repo names
-        match = re.search(r'arda[_-](\w+)', query_lower)
+        # Try to find repo name patterns
+        match = re.search(r'(\w+)[-_](?:service|backend|frontend|api)', query_lower)
         if match:
-            return f"arda-{match.group(1)}"
+            return match.group(1)
         
         return "unknown"
     
