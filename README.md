@@ -40,8 +40,8 @@ A production-ready code ingestion pipeline that:
 
 ```bash
 # Clone the repository
-git clone git@github.com:ardaglobal/i2p.git
-cd i2p
+git clone git@github.com:oikonai/code-ingest.git
+cd code-ingest
 
 # Complete setup with virtual environment (uv-based)
 make setup
@@ -139,7 +139,7 @@ make ingest
 ## 📁 Project Structure
 
 ```
-i2p/
+code-ingest/
 ├── 📖 Makefile                  # Comprehensive command interface
 ├── 📝 CLAUDE.md                 # Development guidelines & best practices
 ├──
