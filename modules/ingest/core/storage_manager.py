@@ -285,7 +285,7 @@ class StorageManager:
         total_stored = 0
         for collection_name in collection_names:
             try:
-                self.vector_client.client.upsert(
+                self.vector_client.upsert_points(
                     collection_name=collection_name,
                     points=points
                 )

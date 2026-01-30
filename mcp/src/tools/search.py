@@ -11,7 +11,7 @@ from ..collections import DEFAULT_COLLECTION, resolve_collection_name
 logger = logging.getLogger(__name__)
 
 # Global state - will be set by server module
-_qdrant_client = None
+_vector_client = None
 _embedding_endpoint = None
 _cloudflare_api_token = None
 _deepinfra_api_key = None
@@ -19,20 +19,20 @@ _embedding_model = None
 _query_cache = None
 
 
-def set_search_globals(qdrant_client, embedding_endpoint, cloudflare_api_token, deepinfra_api_key, embedding_model, query_cache):
+def set_search_globals(vector_client, embedding_endpoint, cloudflare_api_token, deepinfra_api_key, embedding_model, query_cache):
     """
     Set global state references needed by search tools.
 
     Args:
-        qdrant_client: Qdrant client instance
+        vector_client: Vector backend client instance
         embedding_endpoint: Embedding service URL (Cloudflare AI gateway)
         cloudflare_api_token: Cloudflare API token for authentication
         deepinfra_api_key: Deep Infra provider API key
         embedding_model: Model name for embeddings
         query_cache: Query cache instance
     """
-    global _qdrant_client, _embedding_endpoint, _cloudflare_api_token, _deepinfra_api_key, _embedding_model, _query_cache
-    _qdrant_client = qdrant_client
+    global _vector_client, _embedding_endpoint, _cloudflare_api_token, _deepinfra_api_key, _embedding_model, _query_cache
+    _vector_client = vector_client
     _embedding_endpoint = embedding_endpoint
     _cloudflare_api_token = cloudflare_api_token
     _deepinfra_api_key = deepinfra_api_key
@@ -67,10 +67,10 @@ async def _semantic_search_impl(
     if collection_name is None:
         collection_name = DEFAULT_COLLECTION
     try:
-        global _qdrant_client, _embedding_endpoint, _cloudflare_api_token, _query_cache
+        global _vector_client, _embedding_endpoint, _cloudflare_api_token, _query_cache
 
-        if not _qdrant_client:
-            raise ToolError("Qdrant client not initialized")
+        if not _vector_client:
+            raise ToolError("Vector client not initialized")
 
         if not _embedding_endpoint:
             raise ToolError("Embedding endpoint not configured")
@@ -161,29 +161,22 @@ async def _semantic_search_impl(
             logger.error(f"Embedding request failed: {e}")
             raise ToolError(f"Failed to generate query embedding: {str(e)}") from e
 
-        # Search Qdrant collection
+        # Search vector collection
         try:
-            from qdrant_client.models import QueryRequest
-
-            search_results = _qdrant_client.query_points(
+            search_results = _vector_client.search_vectors(
                 collection_name=collection_name,
-                query=query_embedding,
+                query_vector=query_embedding,
                 limit=limit,
-                score_threshold=score_threshold
-            ).points
+                score_threshold=score_threshold,
+                filter_conditions=None
+            )
         except Exception as e:
             if 'not found' in str(e).lower() or 'does not exist' in str(e).lower():
                 raise NotFoundError(f"Collection '{collection_name}' not found") from e
-            raise ToolError(f"Qdrant search failed: {str(e)}") from e
+            raise ToolError(f"Vector search failed: {str(e)}") from e
 
-        # Format results
-        results = []
-        for result in search_results:
-            results.append({
-                'id': result.id,
-                'score': result.score,
-                'payload': result.payload
-            })
+        # Results are already formatted by the backend
+        results = search_results
 
         logger.info(f"✅ Found {len(results)} results")
 

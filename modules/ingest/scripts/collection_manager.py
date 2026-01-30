@@ -25,7 +25,7 @@ from typing import Dict, List, Any, Optional
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from modules.ingest.services.vector_client import QdrantVectorClient
+from modules.ingest.core.vector_backend import create_vector_backend
 from modules.ingest.core.config import IngestionConfig
 
 logging.basicConfig(
@@ -48,7 +48,7 @@ class CollectionManager:
     
     def __init__(self):
         """Initialize collection manager with vector client."""
-        self.client = QdrantVectorClient()
+        self.client = create_vector_backend()
         self.config = IngestionConfig()
     
     def cleanup_all(self, collections: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -111,20 +111,28 @@ class CollectionManager:
         
         for collection_name in collections:
             try:
-                info = self.client.client.get_collection(collection_name)
+                info = self.client.get_collection_info(collection_name)
+                
+                if not info:
+                    continue
                 
                 # Extract language from collection name
                 lang = collection_name.split('_')[-1]
                 
+                # Handle both Qdrant and SurrealDB response formats
+                vectors_count = info.get('vectors_count', info.get('points_count', 0))
+                indexed_count = info.get('indexed_vectors_count', vectors_count)
+                status = info.get('status', 'unknown')
+                
                 stats['collections'][lang] = {
                     'name': collection_name,
-                    'vectors': info.points_count or 0,
-                    'indexed': info.indexed_vectors_count or 0,
-                    'status': info.status.name if hasattr(info.status, 'name') else str(info.status)
+                    'vectors': vectors_count,
+                    'indexed': indexed_count,
+                    'status': status.name if hasattr(status, 'name') else str(status)
                 }
                 
-                stats['total_vectors'] += info.points_count or 0
-                stats['total_indexed'] += info.indexed_vectors_count or 0
+                stats['total_vectors'] += vectors_count
+                stats['total_indexed'] += indexed_count
             
             except Exception as e:
                 logger.warning(f"⚠️  Could not get status for {collection_name}: {e}")
@@ -206,7 +214,7 @@ class CollectionManager:
         """
         try:
             # Try to list collections
-            collections = self.client.client.get_collections()
+            collections = self.client.get_collections()
             
             logger.info("✅ Vector database is healthy")
             logger.info(f"  Collections: {len(collections.collections)}")

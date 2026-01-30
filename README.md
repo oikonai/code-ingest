@@ -20,7 +20,8 @@ A production-ready code ingestion pipeline that:
 - **📂 Multi-Repository Support** - Clone and ingest multiple repos with priority-based processing
 - **🔍 Multi-Language Parsing** - AST-based parsing for Rust, TypeScript, Solidity, and Markdown
 - **🧠 Semantic Embeddings** - Qwen3-Embedding-8B (4096D) via Cloudflare AI Gateway or Modal
-- **💾 Vector Storage** - Qdrant vector database with language-specific collections
+- **💾 Vector Storage** - Qdrant (cloud) or SurrealDB (local) with language-specific collections
+- **🐳 Docker Compose** - Complete local setup with SurrealDB for development
 - **🔎 Cross-Language Search** - Semantic search across all ingested codebases
 - **📊 Comprehensive Monitoring** - Statistics, health checks, and quality validation
 - **🔄 Checkpoint Resume** - Resume interrupted ingestion from last successful state
@@ -66,7 +67,33 @@ source .venv/bin/activate
 make check-env
 ```
 
-### Basic Usage
+## 🐳 Docker Compose (Local Setup)
+
+**NEW**: Run the entire system locally with SurrealDB:
+
+```bash
+# Configure for Docker
+cp .env.docker.example .env
+# Edit .env with your credentials (embedding service, GitHub token)
+
+# Start all services (SurrealDB + Ingestion + MCP)
+docker compose up
+
+# Check health
+curl http://localhost:8001/health
+
+# Access SurrealDB
+curl http://localhost:8000/health
+```
+
+**Services**:
+- **SurrealDB** (port 8000): Local vector database
+- **Ingestion**: One-shot code ingestion (clones repos, ingests, exits)
+- **MCP Server** (port 8001): Query interface with health endpoint
+
+See [docker/README.md](docker/README.md) for complete Docker documentation.
+
+### Basic Usage (Local Python)
 
 ```bash
 # Ingest repositories
@@ -81,6 +108,41 @@ make health
 # View vector database statistics
 make vector-status
 ```
+
+## 🗄️ Vector Backend Configuration
+
+The system supports two vector database backends:
+
+### Qdrant (Cloud/Remote)
+
+**For cloud deployment or managed vector database:**
+
+```bash
+# .env configuration
+VECTOR_BACKEND=qdrant
+QDRANT_URL=https://your-qdrant-instance.qdrant.io
+QDRANT_API_KEY=your_qdrant_api_key
+```
+
+**Advantages**: Managed service, cloud-scale, no local infrastructure
+
+### SurrealDB (Local/Docker)
+
+**For local development or self-hosted deployment:**
+
+```bash
+# .env configuration
+VECTOR_BACKEND=surrealdb
+SURREALDB_URL=http://localhost:8000
+SURREALDB_NS=code_ingest
+SURREALDB_DB=vectors
+SURREALDB_USER=root
+SURREALDB_PASS=root
+```
+
+**Advantages**: No cloud costs, full data control, works offline, Docker Compose support
+
+**Switching backends**: Simply change `VECTOR_BACKEND` in your `.env` file. Both use the same ingestion pipeline and MCP server.
 
 ## ⚙️ Configuring Repositories
 
@@ -142,12 +204,26 @@ make ingest
 code-ingest/
 ├── 📖 Makefile                  # Comprehensive command interface
 ├── 📝 CLAUDE.md                 # Development guidelines & best practices
-├──
+├── 🐳 docker-compose.yml        # Local Docker Compose setup
+├── 🐳 Dockerfile.ingest         # Ingestion service Docker image
+├── 🐳 Dockerfile.mcp            # MCP server Docker image
+├── 📦 config/
+│   ├── repositories.yaml        # Repository configuration
+│   └── collections.yaml         # Collection name mappings
+├── 🐳 docker/
+│   ├── README.md                # Docker Compose documentation
+│   ├── entrypoint-ingest.sh    # Ingestion service entrypoint
+│   └── entrypoint-mcp.sh       # MCP server entrypoint
+├── 🔌 mcp/
+│   ├── server.py                # MCP server main entrypoint
+│   ├── health_server.py         # HTTP health endpoint
+│   └── src/                     # MCP tools and resources
 ├── modules/
 │   └── ingest/                  # Ingestion pipeline
 │       ├── core/
 │       │   ├── 🔄 pipeline.py        # Multi-language ingestion orchestrator
 │       │   ├── ⚙️ config.py          # Repository and ingestion configuration
+│       │   ├── 🔗 vector_backend.py  # Vector backend abstraction (Qdrant/SurrealDB)
 │       │   ├── 🔗 embedding_service.py # Embedding generation (Modal/Cloudflare)
 │       │   ├── 📦 batch_processor.py  # Concurrent batch processing
 │       │   ├── 💾 storage_manager.py  # Vector storage management
@@ -163,6 +239,7 @@ code-ingest/
 │       │   └── 🏗️ terraform_parser.py   # Terraform infrastructure
 │       ├── services/
 │       │   ├── 🔗 vector_client.py       # Qdrant database client
+│       │   ├── 🔗 surrealdb_vector_client.py # SurrealDB database client
 │       │   ├── 🚀 tei_service.py         # TEI embedding service (Modal L4 GPU)
 │       │   ├── 🤖 modal_client.py        # Modal service client wrapper
 │       │   ├── 🔍 enhanced_ranking.py    # Advanced search ranking

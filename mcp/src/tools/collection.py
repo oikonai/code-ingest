@@ -8,26 +8,26 @@ from fastmcp.exceptions import ToolError, NotFoundError
 logger = logging.getLogger(__name__)
 
 # Global state - will be set by server module
-_qdrant_client = None
+_vector_client = None
 _repo_cache = None
 _repo_cache_timestamp = None
 _repo_cache_ttl = None
 SERVER_VERSION = None
 
 
-def set_collection_globals(qdrant_client, repo_cache, repo_cache_timestamp, repo_cache_ttl, server_version):
+def set_collection_globals(vector_client, repo_cache, repo_cache_timestamp, repo_cache_ttl, server_version):
     """
     Set global state references needed by collection tools.
     
     Args:
-        qdrant_client: Qdrant client instance
+        vector_client: Vector backend client instance
         repo_cache: Reference to repository cache dict
         repo_cache_timestamp: Reference to cache timestamp
         repo_cache_ttl: Cache TTL in seconds
         server_version: Server version string
     """
-    global _qdrant_client, _repo_cache, _repo_cache_timestamp, _repo_cache_ttl, SERVER_VERSION
-    _qdrant_client = qdrant_client
+    global _vector_client, _repo_cache, _repo_cache_timestamp, _repo_cache_ttl, SERVER_VERSION
+    _vector_client = vector_client
     _repo_cache = repo_cache
     _repo_cache_timestamp = repo_cache_timestamp
     _repo_cache_ttl = repo_cache_ttl
@@ -49,15 +49,15 @@ def _list_collections_impl(collection_type: Optional[str] = None) -> dict:
         ToolError: If Qdrant client is not initialized or listing fails
     """
     try:
-        global _qdrant_client
+        global _vector_client
 
-        if not _qdrant_client:
-            raise ToolError("Qdrant client not initialized")
+        if not _vector_client:
+            raise ToolError("Vector client not initialized")
 
         from src.collections import COLLECTION_SCHEMA, CollectionType
 
-        # Get all collections from Qdrant
-        qdrant_collections = _qdrant_client.get_collections()
+        # Get all collections from vector backend
+        collection_names = _vector_client.get_collections()
 
         # Group collections by type
         collections_by_type = {
@@ -68,25 +68,32 @@ def _list_collections_impl(collection_type: Optional[str] = None) -> dict:
             "unknown": []  # Collections not in schema
         }
 
-        for collection in qdrant_collections.collections:
+        for collection_name in collection_names:
             # Get detailed info
-            info = _qdrant_client.get_collection(collection.name)
+            info = _vector_client.get_collection_info(collection_name)
+            
+            if not info:
+                continue
+            
+            # Handle both Qdrant and SurrealDB response formats
+            points_count = info.get('vectors_count', info.get('points_count', 0))
+            status = info.get('status', 'unknown')
             
             collection_data = {
-                'name': collection.name,
-                'points_count': info.points_count,
-                'status': info.status.value if hasattr(info.status, 'value') else str(info.status)
+                'name': collection_name,
+                'points_count': points_count,
+                'status': status.value if hasattr(status, 'value') else str(status)
             }
 
             # Categorize based on schema
-            if collection.name in COLLECTION_SCHEMA:
-                schema_info = COLLECTION_SCHEMA[collection.name]
+            if collection_name in COLLECTION_SCHEMA:
+                schema_info = COLLECTION_SCHEMA[collection_name]
                 collection_type_str = schema_info["type"]
                 collection_data["description"] = schema_info["description"]
                 collection_data["type"] = collection_type_str
                 collections_by_type[collection_type_str].append(collection_data)
             else:
-                # Collection exists in Qdrant but not in schema
+                # Collection exists in backend but not in schema
                 collection_data["type"] = "unknown"
                 collection_data["description"] = "Collection not defined in schema"
                 collections_by_type["unknown"].append(collection_data)
@@ -199,21 +206,18 @@ def register_tools(mcp: FastMCP):
             ToolError: If Qdrant client is not initialized or connection fails
         """
         try:
-            global _qdrant_client
+            global _vector_client
 
-            if not _qdrant_client:
-                raise ToolError("Qdrant client not initialized. Server may not have started correctly.")
+            if not _vector_client:
+                raise ToolError("Vector client not initialized. Server may not have started correctly.")
 
-            # Get collections to verify connection
-            collections = _qdrant_client.get_collections()
+            # Use the backend's health_check method
+            health = _vector_client.health_check()
+            
+            # Add server version
+            health['server_version'] = SERVER_VERSION
 
-            return {
-                'status': 'healthy',
-                'connected': True,
-                'collections_count': len(collections.collections),
-                'collections': [c.name for c in collections.collections],
-                'server_version': SERVER_VERSION
-            }
+            return health
 
         except ToolError:
             raise  # Re-raise ToolError as-is
@@ -239,23 +243,30 @@ def register_tools(mcp: FastMCP):
             ToolError: If Qdrant client is not initialized or other errors occur
         """
         try:
-            global _qdrant_client
+            global _vector_client
 
-            if not _qdrant_client:
-                raise ToolError("Qdrant client not initialized")
+            if not _vector_client:
+                raise ToolError("Vector client not initialized")
 
             from src.collections import COLLECTION_SCHEMA
 
-            # Get collection info from Qdrant
-            collection = _qdrant_client.get_collection(collection_name)
+            # Get collection info from vector backend
+            info = _vector_client.get_collection_info(collection_name)
+            
+            if not info:
+                raise NotFoundError(f"Collection '{collection_name}' not found")
 
+            # Handle both Qdrant and SurrealDB response formats
+            points_count = info.get('vectors_count', info.get('points_count', 0))
+            status = info.get('status', 'unknown')
+            
             result = {
                 'name': collection_name,
-                'status': collection.status.value if hasattr(collection.status, 'value') else str(collection.status),
-                'points_count': collection.points_count,
-                'segments_count': collection.segments_count if hasattr(collection, 'segments_count') else 0,
-                'vector_size': collection.config.params.vectors.size if hasattr(collection.config.params, 'vectors') else None,
-                'distance': collection.config.params.vectors.distance.value if hasattr(collection.config.params, 'vectors') else None
+                'status': status.value if hasattr(status, 'value') else str(status),
+                'points_count': points_count,
+                'segments_count': info.get('segments_count', 0),
+                'vector_size': info.get('config', {}).get('vector_size', info.get('embedding_size')),
+                'distance': info.get('config', {}).get('distance_metric', 'cosine')
             }
 
             # Add schema information if available

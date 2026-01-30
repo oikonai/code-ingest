@@ -255,6 +255,33 @@ default_collection: myproject_code_rust
 
 **Why shared config?** Without it, if you change collection names in one place, the other breaks. This config ensures what you ingest is what you can search.
 
+## 🗄️ Vector Database Backends
+
+The system supports two vector database backends via the `VECTOR_BACKEND` environment variable:
+
+### Qdrant (Cloud/Remote)
+- **Use when**: Cloud deployment, managed vector database
+- **Configuration**: Set `VECTOR_BACKEND=qdrant`, `QDRANT_URL`, `QDRANT_API_KEY`
+- **Client**: `modules/ingest/services/vector_client.py` (QdrantVectorClient)
+
+### SurrealDB (Local/Docker)
+- **Use when**: Local development, Docker Compose, self-hosted
+- **Configuration**: Set `VECTOR_BACKEND=surrealdb`, `SURREALDB_URL`, `SURREALDB_NS`, `SURREALDB_DB`
+- **Client**: `modules/ingest/services/surrealdb_vector_client.py` (SurrealDBVectorClient)
+- **Docker**: See `docker/README.md` for Docker Compose setup
+
+**Backend Abstraction**: Both backends implement the same `VectorBackend` protocol defined in `modules/ingest/core/vector_backend.py`, allowing seamless switching between cloud and local deployments.
+
+## 🐳 Docker Compose Local Setup
+
+For local development with Docker:
+
+1. Configure environment: `cp .env.example .env` and set `VECTOR_BACKEND=surrealdb`
+2. Start services: `docker compose up`
+3. Check health: `curl http://localhost:8001/health`
+
+See `docker/README.md` for complete Docker Compose documentation.
+
 ## 🚀 Implementation Checklist
 
 Before submitting any ingestion system code, ensure:
@@ -266,6 +293,7 @@ Before submitting any ingestion system code, ensure:
 - [ ] Checkpoint system supports resume capability
 - [ ] Configuration is externalized and validated
 - [ ] Code is testable with mock data and integration tests
+- [ ] Vector backend abstraction is used (not direct Qdrant/SurrealDB imports)
 - [ ] **Documentation is updated in `docs/` to reflect code changes**
 
 ## 📚 Documentation Sync Requirements
