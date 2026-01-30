@@ -1,0 +1,76 @@
+# Collections Configuration
+# 
+# This file defines vector database collection names and aliases used by both
+# the ingestion pipeline (writing) and MCP server (searching).
+#
+# Single source of truth for collection naming to ensure ingest writes to
+# the same collections that MCP searches.
+
+# Optional prefix for collection names (e.g. "arda" -> arda_code_rust)
+# Set to empty string or omit for no prefix
+collection_prefix: arda
+
+# BY_LANGUAGE: Maps programming languages to collection names
+# Ingest writes code chunks here; MCP uses for search defaults
+language_collections:
+  rust: arda_code_rust
+  typescript: arda_code_typescript
+  javascript: arda_code_typescript  # Same as TypeScript
+  jsx: arda_code_typescript          # Same as TypeScript
+  tsx: arda_code_typescript          # Same as TypeScript
+  python: arda_code_python
+  solidity: arda_code_solidity
+  documentation: arda_documentation
+  yaml: arda_code_yaml
+  helm: arda_code_yaml               # Helm charts use YAML collection
+  terraform: arda_code_terraform
+  infrastructure: arda_infrastructure
+  cicd: arda_cicd
+  mixed: arda_code_mixed             # Cross-language semantic search
+
+# BY_SERVICE: Maps repository types to service-oriented collections
+service_collections:
+  frontend: arda_frontend
+  backend: arda_backend
+  middleware: arda_middleware
+  mcp_server: arda_middleware        # MCP servers are middleware
+  infrastructure: arda_infrastructure
+  tool: arda_infrastructure          # Tools are infrastructure
+  documentation: arda_documentation
+
+# BY_CONCERN: Maps architectural concerns to specialized collections
+concern_collections:
+  api_contracts: arda_api_contracts
+  database_schemas: arda_database_schemas
+  config: arda_config
+  deployment: arda_deployment
+
+# Aliases: Short names for MCP tool usage (e.g. "rust" -> arda_code_rust)
+aliases:
+  rust: arda_code_rust
+  ts: arda_code_typescript
+  typescript: arda_code_typescript
+  js: arda_code_typescript
+  python: arda_code_python
+  py: arda_code_python
+  sol: arda_code_solidity
+  solidity: arda_code_solidity
+  yaml: arda_code_yaml
+  tf: arda_code_terraform
+  terraform: arda_code_terraform
+  docs: arda_documentation
+  documentation: arda_documentation
+  frontend: arda_frontend
+  backend: arda_backend
+  middleware: arda_middleware
+  infra: arda_infrastructure
+  infrastructure: arda_infrastructure
+  api: arda_api_contracts
+  db: arda_database_schemas
+  database: arda_database_schemas
+  config: arda_config
+  deployment: arda_deployment
+  deploy: arda_deployment
+
+# Default collection for MCP search when no collection specified
+default_collection: arda_code_rust

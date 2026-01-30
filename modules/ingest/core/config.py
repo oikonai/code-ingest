@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from enum import Enum
 import logging
+import os
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,109 @@ class Language(Enum):
     JAVASCRIPT = "javascript"
     JSX = "jsx"
     TSX = "tsx"
+
+
+# ===== COLLECTIONS CONFIGURATION LOADING =====
+def _load_collections_from_yaml() -> Optional[Dict[str, Dict[str, str]]]:
+    """
+    Load collection mappings from config/collections.yaml.
+    
+    Returns:
+        Dict with 'language', 'service', 'concern' keys, or None if file not found/error
+    """
+    try:
+        # Check COLLECTIONS_CONFIG env var first
+        config_path = os.getenv('COLLECTIONS_CONFIG', 'config/collections.yaml')
+        
+        # Try relative to workspace root
+        if not Path(config_path).is_absolute():
+            config_path = Path(__file__).parent.parent.parent.parent / config_path
+        else:
+            config_path = Path(config_path)
+        
+        if not config_path.exists():
+            logger.debug(f"Collections config not found at {config_path}, using defaults")
+            return None
+        
+        with open(config_path, 'r') as f:
+            data = yaml.safe_load(f)
+        
+        if not data:
+            logger.warning(f"Collections config at {config_path} is empty, using defaults")
+            return None
+        
+        result = {
+            'language': data.get('language_collections', {}),
+            'service': data.get('service_collections', {}),
+            'concern': data.get('concern_collections', {}),
+            'default': data.get('default_collection')
+        }
+        
+        logger.info(f"✅ Loaded collections config from {config_path}")
+        return result
+        
+    except Exception as e:
+        logger.warning(f"Failed to load collections config: {e}, using defaults")
+        return None
+
+
+# Load collections once at module import
+_LOADED_COLLECTIONS = _load_collections_from_yaml()
+
+
+def _get_default_language_collections() -> Dict[str, str]:
+    """Get language collections from config or defaults."""
+    if _LOADED_COLLECTIONS and _LOADED_COLLECTIONS.get('language'):
+        return _LOADED_COLLECTIONS['language']
+    
+    # Fallback defaults
+    return {
+        'rust': 'arda_code_rust',
+        'typescript': 'arda_code_typescript',
+        'javascript': 'arda_code_typescript',
+        'jsx': 'arda_code_typescript',
+        'tsx': 'arda_code_typescript',
+        'python': 'arda_code_python',
+        'solidity': 'arda_code_solidity',
+        'documentation': 'arda_documentation',
+        'yaml': 'arda_code_yaml',
+        'helm': 'arda_code_yaml',
+        'terraform': 'arda_code_terraform',
+        'infrastructure': 'arda_infrastructure',
+        'cicd': 'arda_cicd',
+        'mixed': 'arda_code_mixed'
+    }
+
+
+def _get_default_service_collections() -> Dict[str, str]:
+    """Get service collections from config or defaults."""
+    if _LOADED_COLLECTIONS and _LOADED_COLLECTIONS.get('service'):
+        return _LOADED_COLLECTIONS['service']
+    
+    # Fallback defaults
+    return {
+        'frontend': 'arda_frontend',
+        'backend': 'arda_backend',
+        'middleware': 'arda_middleware',
+        'mcp_server': 'arda_middleware',
+        'infrastructure': 'arda_infrastructure',
+        'tool': 'arda_infrastructure',
+        'documentation': 'arda_documentation'
+    }
+
+
+def _get_default_concern_collections() -> Dict[str, str]:
+    """Get concern collections from config or defaults."""
+    if _LOADED_COLLECTIONS and _LOADED_COLLECTIONS.get('concern'):
+        return _LOADED_COLLECTIONS['concern']
+    
+    # Fallback defaults
+    return {
+        'api_contracts': 'arda_api_contracts',
+        'database_schemas': 'arda_database_schemas',
+        'config': 'arda_config',
+        'deployment': 'arda_deployment'
+    }
 
 
 @dataclass
@@ -101,41 +206,16 @@ class IngestionConfig:
     warmup_timeout: int = 60  # No cold starts with Cloudflare AI Gateway
 
     # Collection names by language (BY_LANGUAGE)
-    collections: Dict[str, str] = field(default_factory=lambda: {
-        'rust': 'arda_code_rust',
-        'typescript': 'arda_code_typescript',
-        'javascript': 'arda_code_typescript',  # Same as TS
-        'jsx': 'arda_code_typescript',          # Same as TS
-        'tsx': 'arda_code_typescript',          # Same as TS
-        'python': 'arda_code_python',          # Python code
-        'solidity': 'arda_code_solidity',
-        'documentation': 'arda_documentation',
-        'yaml': 'arda_code_yaml',               # YAML configs
-        'helm': 'arda_code_yaml',               # Helm charts (same as YAML)
-        'terraform': 'arda_code_terraform',     # Infrastructure as Code
-        'infrastructure': 'arda_infrastructure', # K8s, containers, etc.
-        'cicd': 'arda_cicd',                    # CI/CD workflows
-        'mixed': 'arda_code_mixed'              # Cross-language semantic search
-    })
+    # Loaded from config/collections.yaml if present, else uses defaults below
+    collections: Dict[str, str] = field(default_factory=lambda: _get_default_language_collections())
 
     # BY_SERVICE collection mappings
-    service_collections: Dict[str, str] = field(default_factory=lambda: {
-        'frontend': 'arda_frontend',
-        'backend': 'arda_backend',
-        'middleware': 'arda_middleware',
-        'mcp_server': 'arda_middleware',  # MCP servers treated as middleware
-        'infrastructure': 'arda_infrastructure',
-        'tool': 'arda_infrastructure',  # Tools treated as infrastructure
-        'documentation': 'arda_documentation'
-    })
+    # Loaded from config/collections.yaml if present, else uses defaults below
+    service_collections: Dict[str, str] = field(default_factory=lambda: _get_default_service_collections())
 
     # BY_CONCERN collection mappings
-    concern_collections: Dict[str, str] = field(default_factory=lambda: {
-        'api_contracts': 'arda_api_contracts',
-        'database_schemas': 'arda_database_schemas',
-        'config': 'arda_config',
-        'deployment': 'arda_deployment'
-    })
+    # Loaded from config/collections.yaml if present, else uses defaults below
+    concern_collections: Dict[str, str] = field(default_factory=lambda: _get_default_concern_collections())
 
     # Business domain classification patterns
     domain_patterns: Dict[str, List[str]] = field(default_factory=lambda: {

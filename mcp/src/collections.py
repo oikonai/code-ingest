@@ -1,154 +1,49 @@
 """
-Collection Schema and Aliases for Arda MCP Server
+Collection Schema and Aliases - Config-Driven
 
-Defines the structure and naming conventions for vector collections in Qdrant.
-Collections are populated by the i2p ingestion system; this module provides
-schema definitions and convenient aliases for accessing them.
+Loads collection names and aliases from shared config/collections.yaml.
+This ensures MCP searches the same collections that ingest writes to.
+
+Collections are created and populated by the ingestion system.
 """
 
+import logging
 from enum import Enum
 from typing import Dict, List, Optional
+
+from .config import load_collections_config, build_collection_schema, get_default_collection
+
+logger = logging.getLogger(__name__)
 
 
 class CollectionType(Enum):
     """Types of collection organization patterns."""
-    BY_LANGUAGE = "language"
-    BY_REPO = "repo"
-    BY_SERVICE = "service"
-    BY_CONCERN = "concern"
+    LANGUAGE = "language"
+    SERVICE = "service"
+    CONCERN = "concern"
+    UNKNOWN = "unknown"
 
 
-# Collection Schema
-# =================
-# Defines all expected collections and their purposes.
-# Collections are created and populated by i2p ingestion system.
+# Load configuration from shared YAML
+_COLLECTIONS_CONFIG = load_collections_config()
 
-COLLECTION_SCHEMA: Dict[str, Dict[str, str]] = {
-    # === BY LANGUAGE ===
-    "arda_code_rust": {
-        "type": CollectionType.BY_LANGUAGE.value,
-        "description": "All Rust code across Arda ecosystem"
-    },
-    "arda_code_typescript": {
-        "type": CollectionType.BY_LANGUAGE.value,
-        "description": "All TypeScript code across Arda ecosystem"
-    },
-    "arda_code_solidity": {
-        "type": CollectionType.BY_LANGUAGE.value,
-        "description": "All Solidity smart contracts"
-    },
-    "arda_code_python": {
-        "type": CollectionType.BY_LANGUAGE.value,
-        "description": "All Python code across Arda ecosystem"
-    },
-    "arda_code_yaml": {
-        "type": CollectionType.BY_LANGUAGE.value,
-        "description": "All YAML configs, K8s manifests, Helm charts"
-    },
-    "arda_code_terraform": {
-        "type": CollectionType.BY_LANGUAGE.value,
-        "description": "All Terraform IaC configurations"
-    },
-    
-    # === BY REPOSITORY ===
-    "arda_repo_platform": {
-        "type": CollectionType.BY_REPO.value,
-        "description": "arda-platform frontend code"
-    },
-    "arda_repo_credit": {
-        "type": CollectionType.BY_REPO.value,
-        "description": "arda-credit backend code"
-    },
-    "arda_repo_chat_agent": {
-        "type": CollectionType.BY_REPO.value,
-        "description": "arda-chat-agent middleware"
-    },
-    "arda_repo_infrastructure": {
-        "type": CollectionType.BY_REPO.value,
-        "description": "aws-iac, helm-charts, infrastructure code"
-    },
-    
-    # === BY SERVICE TYPE ===
-    "arda_frontend": {
-        "type": CollectionType.BY_SERVICE.value,
-        "description": "All frontend code (platform, homepage, ari-ui)"
-    },
-    "arda_backend": {
-        "type": CollectionType.BY_SERVICE.value,
-        "description": "All backend services"
-    },
-    "arda_middleware": {
-        "type": CollectionType.BY_SERVICE.value,
-        "description": "All middleware services"
-    },
-    "arda_infrastructure": {
-        "type": CollectionType.BY_SERVICE.value,
-        "description": "All infrastructure code"
-    },
-    
-    # === BY ARCHITECTURAL CONCERN ===
-    "arda_api_contracts": {
-        "type": CollectionType.BY_CONCERN.value,
-        "description": "All API endpoint definitions and contracts"
-    },
-    "arda_database_schemas": {
-        "type": CollectionType.BY_CONCERN.value,
-        "description": "All database models and schemas"
-    },
-    "arda_config": {
-        "type": CollectionType.BY_CONCERN.value,
-        "description": "All configuration files"
-    },
-    "arda_deployment": {
-        "type": CollectionType.BY_CONCERN.value,
-        "description": "All Helm charts, K8s manifests, deployment configs"
-    },
-    "arda_documentation": {
-        "type": CollectionType.BY_CONCERN.value,
-        "description": "All documentation, READMEs, architecture docs"
-    },
-}
+# Build schema from config
+COLLECTION_SCHEMA: Dict[str, Dict[str, str]] = build_collection_schema(_COLLECTIONS_CONFIG)
 
+# Aliases from config
+COLLECTION_ALIASES: Dict[str, str] = _COLLECTIONS_CONFIG.get('aliases', {})
 
-# Collection Aliases
-# ==================
-# Convenient shortcuts for accessing collections by common names
+# Default collection for search tools
+DEFAULT_COLLECTION = get_default_collection(_COLLECTIONS_CONFIG)
 
-COLLECTION_ALIASES: Dict[str, str] = {
-    # Language aliases
-    "rust": "arda_code_rust",
-    "typescript": "arda_code_typescript",
-    "ts": "arda_code_typescript",
-    "python": "arda_code_python",
-    "py": "arda_code_python",
-    "yaml": "arda_code_yaml",
-    "helm": "arda_code_yaml",
-    "terraform": "arda_code_terraform",
-    "tf": "arda_code_terraform",
-    "solidity": "arda_code_solidity",
-    "sol": "arda_code_solidity",
-    
-    # Repository aliases
-    "platform": "arda_repo_platform",
-    "credit": "arda_repo_credit",
-    "chat": "arda_repo_chat_agent",
-    "infrastructure": "arda_repo_infrastructure",
-    
-    # Service type aliases
-    "frontend": "arda_frontend",
-    "backend": "arda_backend",
-    "middleware": "arda_middleware",
-    "infra": "arda_infrastructure",
-    
-    # Concern aliases
-    "api": "arda_api_contracts",
-    "db": "arda_database_schemas",
-    "database": "arda_database_schemas",
-    "config": "arda_config",
-    "deployment": "arda_deployment",
-    "deploy": "arda_deployment",
-    "docs": "arda_documentation",
-}
+# Default collections for various search patterns
+DEFAULT_CODE_COLLECTIONS = list(_COLLECTIONS_CONFIG.get('language', {}).values()) or ['code']
+DEFAULT_SERVICE_COLLECTIONS = list(_COLLECTIONS_CONFIG.get('service', {}).values()) or []
+DEFAULT_ALL_COLLECTIONS = list(set(
+    list(_COLLECTIONS_CONFIG.get('language', {}).values()) +
+    list(_COLLECTIONS_CONFIG.get('service', {}).values()) +
+    list(_COLLECTIONS_CONFIG.get('concern', {}).values())
+))
 
 
 def resolve_collection_name(name_or_alias: str) -> str:
@@ -192,12 +87,12 @@ def get_collections_by_type(collection_type: CollectionType) -> List[str]:
         List of collection names matching the type
     
     Examples:
-        >>> get_collections_by_type(CollectionType.BY_LANGUAGE)
+        >>> get_collections_by_type(CollectionType.LANGUAGE)
         ["arda_code_rust", "arda_code_typescript", ...]
     """
     return [
         name for name, schema in COLLECTION_SCHEMA.items()
-        if schema["type"] == collection_type.value
+        if schema.get("type") == collection_type.value
     ]
 
 
@@ -216,7 +111,7 @@ def get_collection_info(collection_name: str) -> Optional[Dict[str, str]]:
 
 def get_all_collection_names() -> List[str]:
     """
-    Get list of all defined collection names.
+    Get list of all defined collection names from config.
     
     Returns:
         List of all collection names
@@ -224,19 +119,18 @@ def get_all_collection_names() -> List[str]:
     return list(COLLECTION_SCHEMA.keys())
 
 
-# Default collections for various search patterns
-DEFAULT_CODE_COLLECTIONS = [
-    "arda_code_rust",
-    "arda_code_typescript",
-    "arda_code_solidity"
-]
-
-DEFAULT_SERVICE_COLLECTIONS = [
-    "arda_frontend",
-    "arda_backend",
-    "arda_middleware",
-    "arda_infrastructure"
-]
-
-DEFAULT_ALL_COLLECTIONS = get_all_collection_names()
-
+def add_discovered_collection(collection_name: str) -> None:
+    """
+    Add a collection discovered from Qdrant to the schema.
+    
+    This is used when MCP finds collections in Qdrant that aren't in the config.
+    
+    Args:
+        collection_name: Name of the discovered collection
+    """
+    if collection_name not in COLLECTION_SCHEMA:
+        COLLECTION_SCHEMA[collection_name] = {
+            'type': CollectionType.UNKNOWN.value,
+            'description': f'Discovered collection: {collection_name}'
+        }
+        logger.info(f"Added discovered collection to schema: {collection_name}")

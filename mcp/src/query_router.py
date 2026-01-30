@@ -1,5 +1,5 @@
 """
-Intelligent Query Router for Arda MCP Server
+Intelligent Query Router for MCP Server
 
 Routes natural language queries to the most appropriate specialized tool
 based on pattern matching and intent detection.
@@ -9,7 +9,12 @@ import re
 import logging
 from typing import Dict, Optional, List
 
+from .config import load_collections_config
+
 logger = logging.getLogger(__name__)
+
+# Load collections config for routing
+_COLLECTIONS_CONFIG = load_collections_config()
 
 
 class QueryIntent:
@@ -245,65 +250,70 @@ class QueryRouter:
             query: Query string (lowercase)
         
         Returns:
-            Collection name
+            Collection name from config, or default
         """
+        service_collections = _COLLECTIONS_CONFIG.get('service', {})
+        concern_collections = _COLLECTIONS_CONFIG.get('concern', {})
+        language_collections = _COLLECTIONS_CONFIG.get('language', {})
+        default_collection = _COLLECTIONS_CONFIG.get('default')
+        
         # Frontend-related keywords
         if any(word in query for word in [
             "frontend", "ui", "component", "page", "react",
             "button", "form", "dashboard", "view"
         ]):
-            return "arda_frontend"
+            return service_collections.get('frontend', default_collection or 'frontend')
         
         # Backend-related keywords
         elif any(word in query for word in [
             "backend", "api", "server", "handler", "endpoint",
             "service", "rust", "axum"
         ]):
-            return "arda_backend"
+            return service_collections.get('backend', default_collection or 'backend')
         
         # Middleware keywords
         elif any(word in query for word in [
             "middleware", "agent", "proxy", "gateway"
         ]):
-            return "arda_middleware"
+            return service_collections.get('middleware', default_collection or 'middleware')
         
         # Database keywords
         elif any(word in query for word in [
             "database", "model", "schema", "table", "query",
             "postgres", "sql"
         ]):
-            return "arda_database_schemas"
+            return concern_collections.get('database_schemas', default_collection or 'database')
         
         # Deployment keywords
         elif any(word in query for word in [
             "deploy", "helm", "kubernetes", "k8s", "container",
             "docker", "manifest"
         ]):
-            return "arda_deployment"
+            return concern_collections.get('deployment', default_collection or 'deployment')
         
         # Config keywords
         elif any(word in query for word in [
             "config", "configuration", "environment", "settings",
             "env", "yaml"
         ]):
-            return "arda_config"
+            return concern_collections.get('config', default_collection or 'config')
         
         # Smart contract keywords
         elif any(word in query for word in [
             "contract", "solidity", "blockchain", "ethereum",
             "web3", "proof"
         ]):
-            return "arda_code_solidity"
+            return language_collections.get('solidity', default_collection or 'solidity')
         
         # Documentation keywords
         elif any(word in query for word in [
             "doc", "documentation", "readme", "guide", "architecture"
         ]):
-            return "arda_documentation"
+            return language_collections.get('documentation', default_collection or 'documentation')
         
-        # Default to Rust (main backend language)
+        # Default collection from config
         else:
-            return "arda_code_rust"
+            return default_collection or list(language_collections.values())[0] if language_collections else 'code'
     
     def get_supported_intents(self) -> List[str]:
         """

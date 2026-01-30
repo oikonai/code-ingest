@@ -215,6 +215,46 @@ class IngestionConfig:
 - Environment variable `REPOSITORIES_CONFIG` can override config file path
 - Loader validates config schema and provides clear error messages
 
+### Shared Collections Configuration (Ingest + MCP)
+
+**File:** `config/collections.yaml`
+
+**Purpose:** Single source of truth for collection names. The ingestion pipeline writes to these collections; the MCP server searches them. Keeping them in sync ensures search works correctly.
+
+**Structure:**
+```yaml
+collection_prefix: myproject  # Optional
+
+language_collections:
+  rust: myproject_code_rust
+  typescript: myproject_code_typescript
+  # ...
+
+service_collections:
+  frontend: myproject_frontend
+  backend: myproject_backend
+  # ...
+
+concern_collections:
+  api_contracts: myproject_api_contracts
+  database_schemas: myproject_database_schemas
+  # ...
+
+aliases:
+  rust: myproject_code_rust
+  ts: myproject_code_typescript
+  # ...
+
+default_collection: myproject_code_rust
+```
+
+**Usage:**
+- **Ingest:** `modules/ingest/core/config.py` loads this file to determine collection names when storing vectors
+- **MCP:** `mcp/src/config.py` loads the same file to determine collection names when searching
+- **Override:** Set `COLLECTIONS_CONFIG` env var to use a different path (both ingest and MCP respect this)
+
+**Why shared config?** Without it, if you change collection names in one place, the other breaks. This config ensures what you ingest is what you can search.
+
 ## 🚀 Implementation Checklist
 
 Before submitting any ingestion system code, ensure:

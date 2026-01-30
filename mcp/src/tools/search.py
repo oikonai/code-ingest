@@ -6,6 +6,8 @@ from typing import List, Optional, Dict
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError, NotFoundError
 
+from ..collections import DEFAULT_COLLECTION, resolve_collection_name
+
 logger = logging.getLogger(__name__)
 
 # Global state - will be set by server module
@@ -40,7 +42,7 @@ def set_search_globals(qdrant_client, embedding_endpoint, cloudflare_api_token, 
 
 async def _semantic_search_impl(
     query: str,
-    collection_name: str = "arda_code_rust",
+    collection_name: str = None,
     limit: int = 20,
     score_threshold: float = 0.5
 ) -> dict:
@@ -50,7 +52,7 @@ async def _semantic_search_impl(
 
     Args:
         query: Natural language search query (e.g., "authentication logic", "error handling")
-        collection_name: Target collection (arda_code_rust, arda_code_typescript, arda_code_solidity, arda_documentation)
+        collection_name: Target collection (uses default from config if not specified)
         limit: Maximum number of results to return (1-50, default: 20)
         score_threshold: Minimum similarity score (0.0-1.0, default: 0.5)
 
@@ -61,6 +63,9 @@ async def _semantic_search_impl(
         ToolError: If search fails or embedding generation fails
         NotFoundError: If collection doesn't exist
     """
+    # Use default collection if not specified
+    if collection_name is None:
+        collection_name = DEFAULT_COLLECTION
     try:
         global _qdrant_client, _embedding_endpoint, _cloudflare_api_token, _query_cache
 
@@ -213,7 +218,7 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def semantic_search(
         query: str,
-        collection_name: str = "arda_code_rust",
+        collection_name: str = None,
         limit: int = 20,
         score_threshold: float = 0.5
     ) -> dict:
@@ -222,7 +227,7 @@ def register_tools(mcp: FastMCP):
 
         Args:
             query: Natural language search query (e.g., "authentication logic", "error handling")
-            collection_name: Target collection (arda_code_rust, arda_code_typescript, arda_code_solidity, arda_documentation)
+            collection_name: Target collection (or alias like "rust", "typescript"). Uses default if not specified.
             limit: Maximum number of results to return (1-50, default: 20)
             score_threshold: Minimum similarity score (0.0-1.0, default: 0.5)
 
@@ -233,13 +238,19 @@ def register_tools(mcp: FastMCP):
             ToolError: If search fails or embedding generation fails
             NotFoundError: If collection doesn't exist
         """
+        # Resolve collection name or use default
+        if collection_name is None:
+            collection_name = DEFAULT_COLLECTION
+        else:
+            collection_name = resolve_collection_name(collection_name)
+        
         return await _semantic_search_impl(query, collection_name, limit, score_threshold)
 
 
     @mcp.tool()
     async def batch_semantic_search(
         queries: List[str],
-        collection_name: str = "arda_code_rust",
+        collection_name: str = None,
         limit_per_query: int = 10,
         score_threshold: float = 0.6
     ) -> dict:
@@ -326,11 +337,9 @@ def register_tools(mcp: FastMCP):
             raise ToolError("Query cannot be empty")
 
         if collections is None:
-            collections = [
-                "arda_code_rust",
-                "arda_code_typescript",
-                "arda_code_solidity"
-            ]
+            # Import here to avoid circular dependency
+            from ..collections import DEFAULT_CODE_COLLECTIONS
+            collections = DEFAULT_CODE_COLLECTIONS[:3]  # Use first 3 language collections
 
         # Validate collections list
         if not isinstance(collections, list):

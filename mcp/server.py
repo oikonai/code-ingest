@@ -51,12 +51,11 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Server metadata
-SERVER_NAME = "arda-vector-db"
-SERVER_VERSION = "1.2.0"
+SERVER_NAME = "code-ingest-mcp"
+SERVER_VERSION = "2.0.0"
 SERVER_DESCRIPTION = (
-    "Semantic code search server for Arda Credit platform powered by Qdrant. "
-    "Search across Rust, TypeScript, and Solidity codebases using "
-    "natural language queries with domain-specific prompts and resources."
+    "Semantic code search server for ingested repositories via Qdrant. "
+    "Search across code collections using natural language queries."
 )
 
 logger.info(f"🚀 Initializing {SERVER_NAME} v{SERVER_VERSION}")
@@ -248,22 +247,10 @@ def register_all_features():
     global _qdrant_client, _embedding_endpoint, _cloudflare_api_token, _query_cache
     global _repo_cache, _repo_cache_timestamp, _repo_cache_ttl
 
-    # Import registration functions
-    from src.prompts.prompts import register_prompts
+    # Import minimal registration functions
     from src.resources.resources import register_resources, set_resource_dependencies
     from src.tools.collection import register_tools as register_collection_tools, set_collection_globals, _list_collections_impl
-    from src.tools.search import register_tools as register_search_tools, set_search_globals, _semantic_search_impl
-    from src.tools.domain import register_tools as register_domain_tools, set_domain_dependencies, _get_deployed_services_impl
-    from src.tools.metadata import register_tools as register_metadata_tools, set_metadata_globals
-    from src.tools.code_quality import register_tools as register_quality_tools, set_quality_globals
-    from src.tools.analytics import register_tools as register_analytics_tools, set_analytics_globals
-    from src.tracking.prompt_tracker import PromptUsageTracker
-
-    # Set up global state in utils.github module
-    from src.utils import github
-    github._repo_cache = _repo_cache
-    github._repo_cache_timestamp = _repo_cache_timestamp
-    github._repo_cache_ttl = _repo_cache_ttl
+    from src.tools.search import register_tools as register_search_tools, set_search_globals
 
     # Set up global state in collection tools
     set_collection_globals(
@@ -284,127 +271,21 @@ def register_all_features():
         _query_cache
     )
 
-    # Set up dependencies for domain tools
-    set_domain_dependencies(
-        _semantic_search_impl,
-        _list_collections_impl
-    )
-
-    # Set up global state in code quality tools
-    logger.info("   Setting up code quality analysis tools...")
-    set_quality_globals(
-        _semantic_search_impl,
-        _list_collections_impl,
-        _query_cache,
-        _config.get('github_token')  # GHCR_TOKEN from environment
-    )
-
-    # Initialize prompt tracker for analytics
-    _prompt_tracker = PromptUsageTracker()
-
-    # Set up global state in analytics tools
-    logger.info("   Setting up dashboard analytics tools...")
-    set_analytics_globals(
-        _semantic_search_impl,
-        _qdrant_client,
-        _query_cache,
-        _prompt_tracker
-    )
-
-    # Set up dependencies for resources
-    # Get resource functions from resources module for metadata tools
-    from src.resources.resources import (
-        arda_collections_info,
-        arda_search_best_practices,
-        collection_health_dashboard,
-        api_endpoint_catalog,
-        code_patterns_library,
-        codebase_statistics,
-        service_dependency_map,
-        changelog_resource,
-        metrics_resource,
-        architecture_resource
-    )
-
-    # We need to register resources first so we can get the functions
+    # Register resources first
     register_resources(mcp)
 
-    # After resources are registered, set up their dependencies
+    # Set up resource dependencies
     set_resource_dependencies(
         _list_collections_impl,
-        _semantic_search_impl,
-        _get_deployed_services_impl,
         _query_cache
     )
 
-    # Build resource map for metadata tools
-    resource_map = {
-        "arda://collections": arda_collections_info,
-        "arda://search-tips": arda_search_best_practices,
-        "arda://dashboard": collection_health_dashboard,
-        "arda://api-catalog": api_endpoint_catalog,
-        "arda://patterns": code_patterns_library,
-        "arda://stats": codebase_statistics,
-        "arda://dependencies": service_dependency_map,
-        "arda://changelog": changelog_resource,
-        "arda://metrics": metrics_resource,
-        "arda://architecture": architecture_resource
-    }
-
-    # Get prompt functions from prompts module
-    from src.prompts.prompts import (
-        search_deal_operations,
-        search_zkproof_implementation,
-        search_authentication_system,
-        search_usdc_integration,
-        search_frontend_feature,
-        debug_arda_issue,
-        explore_architecture_layer,
-        find_api_endpoint,
-        trace_data_flow,
-        find_test_coverage,
-        explore_deployment_config,
-        audit_security_patterns
-    )
-
-    # Register prompts
-    register_prompts(mcp)
-
-    # Build prompt map for metadata tools
-    prompt_map = {
-        "search_deal_operations": search_deal_operations,
-        "search_zkproof_implementation": search_zkproof_implementation,
-        "search_authentication_system": search_authentication_system,
-        "search_usdc_integration": search_usdc_integration,
-        "search_frontend_feature": search_frontend_feature,
-        "debug_arda_issue": debug_arda_issue,
-        "explore_architecture_layer": explore_architecture_layer,
-        "find_api_endpoint": find_api_endpoint,
-        "trace_data_flow": trace_data_flow,
-        "find_test_coverage": find_test_coverage,
-        "explore_deployment_config": explore_deployment_config,
-        "audit_security_patterns": audit_security_patterns
-    }
-
-    # Set up global state in metadata tools
-    set_metadata_globals(
-        SERVER_NAME,
-        resource_map,
-        prompt_map,
-        _semantic_search_impl
-    )
-
-    # Register all tools
+    # Register minimal tool set (collection + search)
     register_collection_tools(mcp)
     register_search_tools(mcp)
-    register_domain_tools(mcp)
-    register_metadata_tools(mcp)
-    register_quality_tools(mcp)
-    register_analytics_tools(mcp)
 
-    logger.info(f"   ✓ Registered 30 tools across 6 modules")
-    logger.info(f"   ✓ Registered 12 prompts")
-    logger.info(f"   ✓ Registered 10 resources")
+    logger.info(f"   ✓ Registered 4 core tools (list_collections, get_collection_info, semantic_search, multi_search)")
+    logger.info(f"   ✓ Registered 2 resources (vector://collections, vector://search-tips)")
 
 
 # ============================================================================
@@ -520,14 +401,8 @@ def initialize_qdrant_client(config: Dict[str, Any]) -> QdrantClient:
         for collection in collections.collections:
             logger.info(f"   📦 {collection.name}")
 
-        # Validate expected collections exist
-        expected_collections = ['arda_code_rust', 'arda_code_typescript', 'arda_code_solidity', 'arda_documentation']
-        existing_names = [c.name for c in collections.collections]
-        missing = [name for name in expected_collections if name not in existing_names]
-
-        if missing:
-            logger.warning(f"⚠️  Some expected collections are missing: {', '.join(missing)}")
-            logger.warning("   Vector search may have limited functionality")
+        # No specific collection validation - MCP works with any collections present
+        logger.info(f"   MCP server ready to search {collection_count} collections")
 
         return client
 
