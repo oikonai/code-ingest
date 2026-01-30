@@ -165,6 +165,69 @@ class QdrantVectorClient:
             logger.error(f"❌ Failed to upsert vectors: {e}")
             return False
     
+    def upsert_points(
+        self,
+        collection_name: str,
+        points: List
+    ) -> bool:
+        """
+        Insert or update points in the collection.
+        
+        Compatible with both VectorPoint objects and PointStruct objects.
+        Used by StorageManager for batch operations.
+        
+        Args:
+            collection_name: Target collection
+            points: List of point objects (VectorPoint or PointStruct)
+            
+        Returns:
+            True if successful
+        """
+        try:
+            # Convert to PointStruct if needed
+            qdrant_points = []
+            for point in points:
+                # Check if already a PointStruct
+                if isinstance(point, PointStruct):
+                    qdrant_points.append(point)
+                else:
+                    # Assume VectorPoint or similar structure
+                    point_id = point.id if hasattr(point, 'id') else str(point['id'])
+                    vector = point.vector if hasattr(point, 'vector') else point['vector']
+                    payload = point.payload if hasattr(point, 'payload') else point.get('payload', {})
+                    
+                    # Validate vector dimensions
+                    if len(vector) != self.embedding_size:
+                        raise ValueError(
+                            f"Vector dimension mismatch: expected {self.embedding_size}, "
+                            f"got {len(vector)}"
+                        )
+                    
+                    # Convert string IDs to UUID if needed
+                    if isinstance(point_id, str):
+                        try:
+                            point_id = uuid.UUID(point_id)
+                        except ValueError:
+                            point_id = uuid.uuid5(uuid.NAMESPACE_URL, point_id)
+                    
+                    qdrant_points.append(PointStruct(
+                        id=str(point_id),
+                        vector=vector,
+                        payload=payload
+                    ))
+            
+            self.client.upsert(
+                collection_name=collection_name,
+                points=qdrant_points
+            )
+            
+            logger.info(f"✅ Upserted {len(qdrant_points)} points to '{collection_name}'")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to upsert points: {e}")
+            return False
+    
     def search_vectors(
         self,
         collection_name: str,
@@ -253,6 +316,20 @@ class QdrantVectorClient:
             logger.error(f"❌ Failed to get collection stats: {e}")
             return {}
     
+    def get_collections(self) -> List[str]:
+        """
+        List all collection names.
+        
+        Returns:
+            List of collection names
+        """
+        try:
+            collections = self.client.get_collections()
+            return [c.name for c in collections.collections]
+        except Exception as e:
+            logger.error(f"❌ Failed to get collections: {e}")
+            return []
+    
     def health_check(self) -> Dict[str, Any]:
         """Check Qdrant connection health."""
         try:
@@ -260,6 +337,7 @@ class QdrantVectorClient:
             return {
                 'status': 'healthy',
                 'connected': True,
+                'backend_type': 'qdrant',
                 'collections_count': len(collections.collections),
                 'collections': [c.name for c in collections.collections],
                 'embedding_dimensions': self.embedding_size
@@ -268,6 +346,7 @@ class QdrantVectorClient:
             return {
                 'status': 'unhealthy',
                 'connected': False,
+                'backend_type': 'qdrant',
                 'error': str(e),
                 'embedding_dimensions': self.embedding_size
             }

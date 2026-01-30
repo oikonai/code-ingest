@@ -12,6 +12,14 @@ from .config import (
     REPOSITORIES,
     REPOS_BASE_DIR
 )
+from .vector_backend import (
+    create_vector_backend,
+    VectorBackend,
+    VectorPoint,
+    get_backend_type,
+    is_surrealdb_backend,
+    is_qdrant_backend
+)
 from .checkpoint_manager import CheckpointManager
 from .embedding_service import EmbeddingService
 from .storage_manager import StorageManager
@@ -25,6 +33,12 @@ __all__ = [
     'DEFAULT_REPOSITORIES',
     'REPOSITORIES',
     'REPOS_BASE_DIR',
+    'create_vector_backend',
+    'VectorBackend',
+    'VectorPoint',
+    'get_backend_type',
+    'is_surrealdb_backend',
+    'is_qdrant_backend',
     'CheckpointManager',
     'EmbeddingService',
     'StorageManager',

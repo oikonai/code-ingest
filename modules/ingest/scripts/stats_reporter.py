@@ -25,7 +25,7 @@ from datetime import datetime
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from modules.ingest.services.vector_client import QdrantVectorClient
+from modules.ingest.core.vector_backend import create_vector_backend
 from modules.ingest.core.config import IngestionConfig
 
 logging.basicConfig(
@@ -49,7 +49,7 @@ class StatsReporter:
     
     def __init__(self):
         """Initialize stats reporter."""
-        self.client = QdrantVectorClient()
+        self.client = create_vector_backend()
         self.config = IngestionConfig()
     
     def collect_stats(
@@ -82,14 +82,23 @@ class StatsReporter:
         
         for collection_name in collections:
             try:
-                info = self.client.client.get_collection(collection_name)
+                info = self.client.get_collection_info(collection_name)
+                
+                if not info:
+                    continue
+                
                 lang = collection_name.split('_')[-1]
+                
+                # Handle both Qdrant and SurrealDB response formats
+                vectors_count = info.get('vectors_count', info.get('points_count', 0))
+                indexed_count = info.get('indexed_vectors_count', vectors_count)
+                status = info.get('status', 'unknown')
                 
                 collection_stats = {
                     'name': collection_name,
-                    'vectors': info.points_count or 0,
-                    'indexed': info.indexed_vectors_count or 0,
-                    'status': info.status.name if hasattr(info.status, 'name') else str(info.status)
+                    'vectors': vectors_count,
+                    'indexed': indexed_count,
+                    'status': status.name if hasattr(status, 'name') else str(status)
                 }
                 
                 stats['collections'][lang] = collection_stats

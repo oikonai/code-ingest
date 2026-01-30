@@ -32,8 +32,12 @@ from dotenv import load_dotenv
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError, ResourceError, NotFoundError
 
-# Import Qdrant client
-from qdrant_client import QdrantClient
+# Import vector backend abstraction
+import sys
+import os
+# Add parent directory to path to import from modules
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from modules.ingest.core.vector_backend import create_vector_backend, VectorBackend
 
 # Import cache module
 from src.cache import QueryCache
@@ -62,7 +66,7 @@ logger.info(f"🚀 Initializing {SERVER_NAME} v{SERVER_VERSION}")
 logger.info(f"📝 {SERVER_DESCRIPTION}")
 
 # Global state for sharing between modules (initialized in lifespan)
-_qdrant_client: Optional[QdrantClient] = None
+_vector_client: Optional[VectorBackend] = None
 _embedding_endpoint: Optional[str] = None
 _cloudflare_api_token: Optional[str] = None
 _config: Optional[Dict[str, Any]] = None
@@ -167,11 +171,11 @@ async def lifespan(server: FastMCP):
         # Validate environment configuration
         config = validate_environment()
 
-        # Initialize Qdrant client
-        qdrant_client = initialize_qdrant_client(config)
+        # Initialize vector backend
+        vector_client = initialize_vector_backend(config)
 
         # Store in global variables for modules to access
-        _qdrant_client = qdrant_client
+        _vector_client = vector_client
         _embedding_endpoint = config['embedding_endpoint']
         _cloudflare_api_token = config['cloudflare_api_token']
         _config = config
@@ -191,8 +195,19 @@ async def lifespan(server: FastMCP):
         logger.info(f"📡 {SERVER_NAME} is ready to accept MCP connections")
         logger.info("=" * 80)
 
+        # Start health endpoint server (in Docker)
+        health_server = None
+        if os.getenv('DOCKER_ENV') == 'true' or os.getenv('ENABLE_HEALTH_ENDPOINT') == 'true':
+            try:
+                from health_server import start_health_server
+                health_port = int(os.getenv('HEALTH_PORT', '8001'))
+                health_server = start_health_server(port=health_port)
+                logger.info(f"🏥 Health endpoint available at http://0.0.0.0:{health_port}/health")
+            except Exception as e:
+                logger.warning(f"⚠️  Failed to start health endpoint: {e}")
+
         # Yield control to server
-        yield {"qdrant_client": qdrant_client, "embedding_endpoint": config['embedding_endpoint']}
+        yield {"vector_client": vector_client, "embedding_endpoint": config['embedding_endpoint']}
 
         # Wait for warmup task to complete before shutdown
         try:
@@ -222,8 +237,8 @@ async def lifespan(server: FastMCP):
     finally:
         # Cleanup on shutdown
         logger.info("🛑 Shutting down server...")
-        if _qdrant_client:
-            logger.info("   Closing Qdrant connection...")
+        if _vector_client:
+            logger.info("   Closing vector backend connection...")
         logger.info("✅ Shutdown complete")
 
 
@@ -244,7 +259,7 @@ def register_all_features():
     2. Calls registration functions to add features to the MCP server
     3. Sets up cross-module dependencies
     """
-    global _qdrant_client, _embedding_endpoint, _cloudflare_api_token, _query_cache
+    global _vector_client, _embedding_endpoint, _cloudflare_api_token, _query_cache
     global _repo_cache, _repo_cache_timestamp, _repo_cache_ttl
 
     # Import minimal registration functions
@@ -254,7 +269,7 @@ def register_all_features():
 
     # Set up global state in collection tools
     set_collection_globals(
-        _qdrant_client,
+        _vector_client,
         _repo_cache,
         _repo_cache_timestamp,
         _repo_cache_ttl,
@@ -263,7 +278,7 @@ def register_all_features():
 
     # Set up global state in search tools
     set_search_globals(
-        _qdrant_client,
+        _vector_client,
         _embedding_endpoint,
         _cloudflare_api_token,
         _config.get('deepinfra_api_key'),
@@ -364,42 +379,39 @@ def validate_environment() -> Dict[str, Any]:
     return config
 
 
-def initialize_qdrant_client(config: Dict[str, Any]) -> QdrantClient:
+def initialize_vector_backend(config: Dict[str, Any]) -> VectorBackend:
     """
-    Initialize Qdrant client with configuration and validate connection.
+    Initialize vector backend with configuration and validate connection.
 
     Args:
         config: Configuration dictionary from validate_environment()
 
     Returns:
-        Initialized QdrantClient
+        Initialized VectorBackend
 
     Raises:
         RuntimeError: If connection fails or collections are missing
         Exception: For other unexpected errors
     """
     try:
-        logger.info("🔗 Connecting to Qdrant...")
+        backend_type = os.getenv('VECTOR_BACKEND', 'qdrant').lower()
+        logger.info(f"🔗 Connecting to vector backend: {backend_type}...")
 
-        client = QdrantClient(
-            url=config['qdrant_url'],
-            api_key=config['qdrant_api_key'],
-            timeout=60
-        )
+        client = create_vector_backend()
 
         # Test connection by listing collections
         collections = client.get_collections()
-        collection_count = len(collections.collections)
+        collection_count = len(collections)
 
         if collection_count == 0:
-            raise RuntimeError(
-                "No collections found in Qdrant database. "
-                "Please ensure the vector database has been populated with data."
+            logger.warning(
+                "⚠️  No collections found in vector database. "
+                "Vector search will not work until ingestion is complete."
             )
 
-        logger.info(f"✅ Connected to Qdrant - Found {collection_count} collections")
-        for collection in collections.collections:
-            logger.info(f"   📦 {collection.name}")
+        logger.info(f"✅ Connected to {backend_type} - Found {collection_count} collections")
+        for collection_name in collections:
+            logger.info(f"   📦 {collection_name}")
 
         # No specific collection validation - MCP works with any collections present
         logger.info(f"   MCP server ready to search {collection_count} collections")
@@ -410,13 +422,19 @@ def initialize_qdrant_client(config: Dict[str, Any]) -> QdrantClient:
         raise
 
     except Exception as e:
-        logger.error(f"❌ Failed to connect to Qdrant: {e}")
+        backend_type = os.getenv('VECTOR_BACKEND', 'qdrant').lower()
+        logger.error(f"❌ Failed to connect to {backend_type}: {e}")
         logger.error("💡 Please check:")
-        logger.error("   - QDRANT_URL is accessible from your network")
-        logger.error("   - QDRANT_API_KEY is valid and has proper permissions")
-        logger.error("   - Qdrant service is running and healthy")
+        if backend_type == 'qdrant':
+            logger.error("   - QDRANT_URL is accessible from your network")
+            logger.error("   - QDRANT_API_KEY is valid and has proper permissions")
+            logger.error("   - Qdrant service is running and healthy")
+        elif backend_type == 'surrealdb':
+            logger.error("   - SURREALDB_URL is accessible (default: http://localhost:8000)")
+            logger.error("   - SurrealDB service is running and healthy")
+            logger.error("   - SURREALDB_NS, SURREALDB_DB are set correctly")
         logger.exception("Stack trace:")
-        raise RuntimeError(f"Qdrant connection failed: {e}") from e
+        raise RuntimeError(f"{backend_type} connection failed: {e}") from e
 
 
 # ============================================================================

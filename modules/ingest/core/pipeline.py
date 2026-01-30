@@ -22,8 +22,8 @@ from ..parsers.typescript_parser import TypeScriptASTParser
 from ..parsers.solidity_parser import SolidityASTParser
 from ..parsers.documentation_parser import DocumentationParser
 
-# Import vector client from services/ subdirectory
-from ..services.vector_client import QdrantVectorClient
+# Import vector backend factory
+from .vector_backend import create_vector_backend, VectorBackend
 
 logger = logging.getLogger(__name__)
 
@@ -95,12 +95,14 @@ class IngestionPipeline:
         logger.info("✅ Ingestion pipeline initialized")
 
     @property
-    def vector_client(self) -> QdrantVectorClient:
+    def vector_client(self) -> VectorBackend:
         """Lazy-load vector client on first access."""
         if self._vector_client is None:
             if self._skip_vector_init:
                 raise RuntimeError("Vector client access not allowed in warmup-only mode")
-            self._vector_client = QdrantVectorClient()
+            self._vector_client = create_vector_backend(
+                embedding_size=self.config.embedding_size
+            )
         return self._vector_client
 
     @property

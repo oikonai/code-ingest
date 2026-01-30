@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.venv
+venv
+env
+
+# IDE
+.vscode
+.idea
+.cursor
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Tests
+tests/
+*.test.py
+
+# Checkpoints and logs
+*.log
+*.json
+ingestion_checkpoint.json
+
+# Local data
+repos/
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# Cache
+.cache
+*.cache
