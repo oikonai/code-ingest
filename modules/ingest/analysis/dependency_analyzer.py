@@ -80,7 +80,7 @@ class DependencyAnalyzer:
                 # Extract imports from metadata
                 if hasattr(item, 'imports') and item.imports:
                     for imported_package in item.imports:
-                        if self._is_arda_package(imported_package):
+                        if self._is_internal_package(imported_package):
                             self.import_graph[repo_id]["imports_from"].append(imported_package)
                 
                 # Analyze package.json files
@@ -97,7 +97,7 @@ class DependencyAnalyzer:
                 elif item.language == 'python':
                     imports = self._extract_python_imports(item.full_content)
                     for imp in imports:
-                        if self._is_arda_package(imp):
+                        if self._is_internal_package(imp):
                             self.import_graph[repo_id]["imports_from"].append(imp)
             
             # Remove duplicates
@@ -110,7 +110,7 @@ class DependencyAnalyzer:
             for imported_package in data["imports_from"]:
                 # Find which repo provides this package
                 for other_repo_id in self.all_repo_data.keys():
-                    if imported_package in other_repo_id or imported_package.startswith('arda'):
+                    if imported_package in other_repo_id:
                         if other_repo_id in self.import_graph:
                             self.import_graph[other_repo_id]["imported_by"].append(repo_id)
     
@@ -196,8 +196,8 @@ class DependencyAnalyzer:
             data = json.loads(content)
             deps = list(data.get('dependencies', {}).keys())
             
-            # Filter for Arda packages
-            return [d for d in deps if self._is_arda_package(d)]
+            # Filter for internal packages
+            return [d for d in deps if self._is_internal_package(d)]
         except Exception as e:
             logger.debug(f"Failed to parse package.json: {e}")
             return []
@@ -221,7 +221,7 @@ class DependencyAnalyzer:
                     match = re.match(r'^(\w+)\s*=', line)
                     if match:
                         dep_name = match.group(1)
-                        if self._is_arda_package(dep_name):
+                        if self._is_internal_package(dep_name):
                             deps.append(dep_name)
         
         except Exception as e:
@@ -263,7 +263,7 @@ class DependencyAnalyzer:
         for pattern in patterns:
             matches = re.findall(pattern, content)
             for url in matches:
-                # Check if it's an Arda API or contains service names
+                # Check if it's an internal API or contains service names
                 if '/api/' in url or any(service in url for service in self.all_repo_data.keys()):
                     api_calls.append({
                         'url': url,
@@ -315,7 +315,8 @@ class DependencyAnalyzer:
         
         return api_calls
     
-    def _is_arda_package(self, package_name: str) -> bool:
-        """Check if package is an Arda internal package."""
-        return 'arda' in package_name.lower() or package_name in self.all_repo_data
+    def _is_internal_package(self, package_name: str) -> bool:
+        """Check if package is an internal package (in all_repo_data)."""
+        # Internal if it matches a known repo id
+        return package_name in self.all_repo_data
 

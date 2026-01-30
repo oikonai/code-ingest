@@ -51,18 +51,18 @@ def resolve_collection_name(name_or_alias: str) -> str:
     Resolve a collection name or alias to the full collection name.
     
     Args:
-        name_or_alias: Collection name or alias (e.g., "rust", "arda_code_rust")
-    
+        name_or_alias: Collection name or alias (e.g., "rust", "code_rust", "myproject_code_rust")
+        
     Returns:
-        Full collection name (e.g., "arda_code_rust")
-    
+        Full collection name (e.g., "code_rust" or with prefix from config)
+        
     Examples:
         >>> resolve_collection_name("rust")
-        "arda_code_rust"
-        >>> resolve_collection_name("arda_code_rust")
-        "arda_code_rust"
+        "code_rust"
+        >>> resolve_collection_name("code_rust")
+        "code_rust"
         >>> resolve_collection_name("ts")
-        "arda_code_typescript"
+        "code_typescript"
     """
     # If it's already a full collection name, return it
     if name_or_alias in COLLECTION_SCHEMA:
@@ -88,7 +88,7 @@ def get_collections_by_type(collection_type: CollectionType) -> List[str]:
     
     Examples:
         >>> get_collections_by_type(CollectionType.LANGUAGE)
-        ["arda_code_rust", "arda_code_typescript", ...]
+        ["code_rust", "code_typescript", ...] (or with prefix from config)
     """
     return [
         name for name, schema in COLLECTION_SCHEMA.items()

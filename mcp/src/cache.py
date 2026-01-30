@@ -1,5 +1,5 @@
 """
-Query Result Caching for Arda MCP Server
+Query Result Caching for Code Ingestion MCP Server
 
 Simple in-memory cache to improve response times for repeated queries.
 Caches semantic search results with automatic TTL expiration and size management.

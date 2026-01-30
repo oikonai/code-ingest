@@ -106,22 +106,23 @@ def _get_default_language_collections() -> Dict[str, str]:
     if _LOADED_COLLECTIONS and _LOADED_COLLECTIONS.get('language'):
         return _LOADED_COLLECTIONS['language']
     
-    # Fallback defaults
+    # Fallback defaults (used only when config/collections.yaml is not loaded)
+    # Uses 'code_' prefix for language collections to avoid name clashes
     return {
-        'rust': 'arda_code_rust',
-        'typescript': 'arda_code_typescript',
-        'javascript': 'arda_code_typescript',
-        'jsx': 'arda_code_typescript',
-        'tsx': 'arda_code_typescript',
-        'python': 'arda_code_python',
-        'solidity': 'arda_code_solidity',
-        'documentation': 'arda_documentation',
-        'yaml': 'arda_code_yaml',
-        'helm': 'arda_code_yaml',
-        'terraform': 'arda_code_terraform',
-        'infrastructure': 'arda_infrastructure',
-        'cicd': 'arda_cicd',
-        'mixed': 'arda_code_mixed'
+        'rust': 'code_rust',
+        'typescript': 'code_typescript',
+        'javascript': 'code_typescript',
+        'jsx': 'code_typescript',
+        'tsx': 'code_typescript',
+        'python': 'code_python',
+        'solidity': 'code_solidity',
+        'documentation': 'documentation',
+        'yaml': 'code_yaml',
+        'helm': 'code_yaml',
+        'terraform': 'code_terraform',
+        'infrastructure': 'infrastructure',
+        'cicd': 'cicd',
+        'mixed': 'code_mixed'
     }
 
 
@@ -130,15 +131,15 @@ def _get_default_service_collections() -> Dict[str, str]:
     if _LOADED_COLLECTIONS and _LOADED_COLLECTIONS.get('service'):
         return _LOADED_COLLECTIONS['service']
     
-    # Fallback defaults
+    # Fallback defaults (used only when config/collections.yaml is not loaded)
     return {
-        'frontend': 'arda_frontend',
-        'backend': 'arda_backend',
-        'middleware': 'arda_middleware',
-        'mcp_server': 'arda_middleware',
-        'infrastructure': 'arda_infrastructure',
-        'tool': 'arda_infrastructure',
-        'documentation': 'arda_documentation'
+        'frontend': 'frontend',
+        'backend': 'backend',
+        'middleware': 'middleware',
+        'mcp_server': 'middleware',
+        'infrastructure': 'infrastructure',
+        'tool': 'infrastructure',
+        'documentation': 'documentation'
     }
 
 
@@ -147,12 +148,12 @@ def _get_default_concern_collections() -> Dict[str, str]:
     if _LOADED_COLLECTIONS and _LOADED_COLLECTIONS.get('concern'):
         return _LOADED_COLLECTIONS['concern']
     
-    # Fallback defaults
+    # Fallback defaults (used only when config/collections.yaml is not loaded)
     return {
-        'api_contracts': 'arda_api_contracts',
-        'database_schemas': 'arda_database_schemas',
-        'config': 'arda_config',
-        'deployment': 'arda_deployment'
+        'api_contracts': 'api_contracts',
+        'database_schemas': 'database_schemas',
+        'config': 'config',
+        'deployment': 'deployment'
     }
 
 
@@ -188,7 +189,7 @@ class IngestionConfig:
     embedding_model: str = "Qwen/Qwen3-Embedding-8B"
 
     # DEPRECATED: Modal TEI endpoint (kept for reference)
-    # modal_endpoint: str = "https://ardaglobal--embed.modal.run"
+    # modal_endpoint: str = "https://your-org--embed.modal.run"
 
     # Checkpoint configuration
     checkpoint_file: Path = field(default_factory=lambda: Path("./ingestion_checkpoint.json"))
@@ -286,29 +287,19 @@ def _get_fallback_repositories() -> Dict[str, RepoConfig]:
     """
     Fallback repository configuration in case YAML loading fails.
     
-    Returns minimal set of repositories for backward compatibility.
+    Returns minimal generic example. Users should provide config/repositories.yaml.
     """
+    logger.warning("Using fallback repository config - please provide config/repositories.yaml")
     return {
-        "arda-platform": RepoConfig(
-            github_url="https://github.com/ardaglobal/arda-platform",
-            repo_type=RepoType.FRONTEND,
-            languages=[Language.TYPESCRIPT, Language.YAML],
-            components=["pages", "components", "api", "config"],
-            has_helm=True,
-            helm_path="helm/",
-            service_dependencies=["arda-credit", "arda-chat-agent", "fastmcp-proxy"],
-            priority=PRIORITY_HIGH
-        ),
-        "arda-credit": RepoConfig(
-            github_url="https://github.com/ardaglobal/arda-credit",
+        "example-backend": RepoConfig(
+            github_url="https://github.com/myorg/example-backend",
             repo_type=RepoType.BACKEND,
-            languages=[Language.RUST, Language.YAML, Language.HELM],
-            components=["api", "lib", "db", "scripts", "helm"],
-            has_helm=True,
-            helm_path="helm/",
+            languages=[Language.RUST],
+            components=["api", "lib"],
+            has_helm=False,
             service_dependencies=[],
             exposes_apis=True,
-            api_base_path="/api/credit",
+            api_base_path="/api",
             priority=PRIORITY_HIGH
         ),
     }
@@ -324,37 +315,14 @@ REPOSITORIES: Dict[str, RepoConfig] = _LOADED_REPOS
 REPOS_BASE_DIR: str = _REPOS_BASE_DIR or "./repos"
 
 
-# Legacy default repositories (kept for backward compatibility)
+# Legacy default repositories (deprecated - use config/repositories.yaml instead)
+# Kept for backward compatibility with code that still references DEFAULT_REPOSITORIES
 DEFAULT_REPOSITORIES = [
     RepositoryConfig(
-        path='./repos/arda-platform',
-        repo_id='arda-platform',
-        primary_language='typescript',
-        description='Turborepo monorepo: Platform (auth gateway port 3002), Credit App (investment matching port 3000), IDR (document negotiation port 3001), shared UI packages'
-    ),
-    RepositoryConfig(
-        path='./repos/arda-credit',
-        repo_id='arda-credit',
+        path='./repos/example-backend',
+        repo_id='example-backend',
         primary_language='rust',
-        description='Rust backend with financial APIs, smart contracts, CLI tools'
-    ),
-    RepositoryConfig(
-        path='./repos/arda-knowledge-hub',
-        repo_id='arda-knowledge-hub',
-        primary_language='documentation',
-        description='Central knowledge repository and wiki: research, technical knowledge, AI knowledge graph, domains, concepts'
-    ),
-    RepositoryConfig(
-        path='./repos/arda-chat-agent',
-        repo_id='arda-chat-agent',
-        primary_language='typescript',
-        description='JavaScript/TypeScript chat agent implementation for Arda platform'
-    ),
-    RepositoryConfig(
-        path='./repos/ari-ui',
-        repo_id='ari-ui',
-        primary_language='typescript',
-        description='JavaScript/TypeScript chat bot implementation for Arda platform'
+        description='Example backend service - replace with your repositories in config/repositories.yaml'
     )
 ]
 
@@ -425,33 +393,41 @@ EXTENSION_MAPPING = {
 
 # ===== COLLECTION MAPPING HELPER FUNCTIONS =====
 
-def determine_service_collection(repo_type: RepoType) -> str:
+def determine_service_collection(repo_type: RepoType, service_collections: Optional[Dict[str, str]] = None) -> str:
     """
     Determine the BY_SERVICE collection name from repository type.
     
     Args:
         repo_type: RepoType enum value
+        service_collections: Optional service collections dict (from config)
         
     Returns:
         Collection name for the service
     """
-    mapping = {
-        RepoType.FRONTEND: 'arda_frontend',
-        RepoType.BACKEND: 'arda_backend',
-        RepoType.MIDDLEWARE: 'arda_middleware',
-        RepoType.MCP_SERVER: 'arda_middleware',  # MCP servers are middleware
-        RepoType.INFRASTRUCTURE: 'arda_infrastructure',
-        RepoType.TOOL: 'arda_infrastructure',  # Tools are infrastructure
-        RepoType.DOCUMENTATION: 'arda_documentation'
+    # Use provided collections or load from module-level loaded config
+    collections = service_collections or _get_default_service_collections()
+    
+    # Map RepoType to collection key, then resolve to collection name
+    type_to_key = {
+        RepoType.FRONTEND: 'frontend',
+        RepoType.BACKEND: 'backend',
+        RepoType.MIDDLEWARE: 'middleware',
+        RepoType.MCP_SERVER: 'mcp_server',
+        RepoType.INFRASTRUCTURE: 'infrastructure',
+        RepoType.TOOL: 'tool',
+        RepoType.DOCUMENTATION: 'documentation'
     }
-    return mapping.get(repo_type, 'arda_infrastructure')
+    
+    key = type_to_key.get(repo_type, 'infrastructure')
+    return collections.get(key, 'infrastructure')
 
 
 def determine_concern_collections(
     file_path: str,
     language: str,
     item_type: str,
-    content: str = ""
+    content: str = "",
+    concern_collections: Optional[Dict[str, str]] = None
 ) -> List[str]:
     """
     Determine which BY_CONCERN collections this file should be added to.
@@ -461,48 +437,52 @@ def determine_concern_collections(
         language: Programming language
         item_type: Type of code item (function, class, etc.)
         content: File content for pattern matching
+        concern_collections: Optional concern collections dict (from config)
         
     Returns:
         List of concern collection names
     """
+    # Use provided collections or load from module-level loaded config
+    collections = concern_collections or _get_default_concern_collections()
+    
     concerns = []
     file_path_lower = file_path.lower()
     content_lower = content.lower() if content else ""
     
     # API Contracts - OpenAPI/Swagger specs, API route definitions
     if any(pattern in file_path_lower for pattern in ['openapi', 'swagger', 'api.yaml', 'api.yml']):
-        concerns.append('arda_api_contracts')
+        concerns.append(collections.get('api_contracts', 'api_contracts'))
     elif language in ['rust', 'typescript', 'python']:
         # Look for API route handlers
         if any(pattern in content_lower for pattern in [
             'router.', 'app.get', 'app.post', '#[get', '#[post',
             'fastapi', 'axum', 'express'
         ]):
-            concerns.append('arda_api_contracts')
+            concerns.append(collections.get('api_contracts', 'api_contracts'))
     
     # Database Schemas - SQL files, ORM models, migrations
     if any(pattern in file_path_lower for pattern in [
         'schema', 'migration', 'models.', 'entities.', '.sql'
     ]):
-        concerns.append('arda_database_schemas')
+        concerns.append(collections.get('database_schemas', 'database_schemas'))
     elif any(pattern in content_lower for pattern in [
         'create table', 'alter table', 'sqlalchemy', 'prisma', 'diesel'
     ]):
-        concerns.append('arda_database_schemas')
+        concerns.append(collections.get('database_schemas', 'database_schemas'))
     
     # Config - Configuration files
     if any(pattern in file_path_lower for pattern in [
         'config', 'settings', '.env', 'values.yaml'
     ]):
-        concerns.append('arda_config')
+        concerns.append(collections.get('config', 'config'))
     
     # Deployment - K8s manifests, Helm charts, Terraform, Docker
     if any(pattern in file_path_lower for pattern in [
         'helm', 'k8s', 'kubernetes', 'deployment', 'service.yaml',
         'dockerfile', 'docker-compose', '.tf', 'terraform'
     ]):
-        concerns.append('arda_deployment')
+        concerns.append(collections.get('deployment', 'deployment'))
     elif language in ['yaml', 'terraform']:
-        concerns.append('arda_deployment')
+        concerns.append(collections.get('deployment', 'deployment'))
     
     return concerns

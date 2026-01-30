@@ -75,7 +75,7 @@ This confirmed that:
 # Modal TEI
 MODAL_TOKEN_ID=...
 MODAL_TOKEN_SECRET=...
-MODAL_ENDPOINT=https://ardaglobal--embed.modal.run
+MODAL_ENDPOINT=https://your-org--embed.modal.run
 ```
 
 **After:**
@@ -96,7 +96,7 @@ class IngestionConfig:
     embedding_model: str = "Qwen/Qwen3-Embedding-8B"
 
     # DEPRECATED: Modal TEI endpoint
-    # modal_endpoint: str = "https://ardaglobal--embed.modal.run"
+    # modal_endpoint: str = "https://your-org--embed.modal.run"
 
     # Updated timeouts (no cold starts)
     embedding_timeout: int = 60  # Was: 300s for Modal cold starts

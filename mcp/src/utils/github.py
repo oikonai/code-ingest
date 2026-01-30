@@ -41,7 +41,7 @@ async def fetch_github_repo_structure(repo_url: str, github_token: Optional[str]
         Dictionary with repository structure and metadata
     """
     # Parse repo URL to extract owner and repo name
-    # git@github.com:ardaglobal/arda-credit.git -> ardaglobal/arda-credit
+    # git@github.com:myorg/my-repo.git -> myorg/my-repo
     import re
     match = re.search(r'github\.com[:/]([^/]+)/([^/.]+)', repo_url)
     if not match:
@@ -114,23 +114,23 @@ async def get_cached_repo_structures() -> Dict[str, Any]:
 
     logger.info("🔄 Fetching latest repository structures from GitHub...")
 
-    # Get configuration
-    arda_credit_url = os.getenv('ARDA_CREDIT_REPO_URL')
-    arda_platform_url = os.getenv('ARDA_CREDIT_PLATFORM')
-    github_token = os.getenv('GHCR_TOKEN')
-
-    if not arda_credit_url or not arda_platform_url:
-        logger.warning("⚠️  Repository URLs not configured in environment")
+    # Get configuration - generalized to support multiple repos
+    # Example: REPO_URL_1=git@github.com:myorg/backend.git
+    #          REPO_URL_2=git@github.com:myorg/frontend.git
+    github_token = os.getenv('GITHUB_TOKEN') or os.getenv('GHCR_TOKEN')
+    
+    repos = {}
+    for i in range(1, 10):  # Support up to 9 repos
+        repo_url = os.getenv(f'REPO_URL_{i}')
+        if repo_url:
+            repo_name = repo_url.split('/')[-1].replace('.git', '')
+            repos[repo_name] = await fetch_github_repo_structure(repo_url, github_token)
+    
+    if not repos:
+        logger.warning("⚠️  No REPO_URL_* environment variables configured")
         return {}
 
-    # Fetch both repositories
-    arda_credit = await fetch_github_repo_structure(arda_credit_url, github_token)
-    arda_platform = await fetch_github_repo_structure(arda_platform_url, github_token)
-
-    _repo_cache = {
-        'arda_credit': arda_credit,
-        'arda_platform': arda_platform
-    }
+    _repo_cache = repos
     _repo_cache_timestamp = current_time
 
     logger.info(f"✅ Repository structures cached (TTL: {_repo_cache_ttl}s)")

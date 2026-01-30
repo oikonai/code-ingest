@@ -10,7 +10,7 @@ Following CLAUDE.md: <500 lines, single responsibility (repository cloning only)
 Usage:
     python repo_cloner.py --pat-token <token>
     python repo_cloner.py --force-reclone
-    python repo_cloner.py --repos arda-credit arda-platform
+    python repo_cloner.py --repos my-backend my-frontend
 """
 
 import os
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 class RepositoryCloner:
     """
-    Clones and manages Arda Global repositories.
+    Clones and manages configured repositories.
     
     Features:
     - Single PAT token authentication
@@ -291,7 +291,7 @@ class RepositoryCloner:
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description='Clone Arda Global repositories for ingestion'
+        description='Clone configured repositories for ingestion'
     )
     parser.add_argument(
         '--pat-token',

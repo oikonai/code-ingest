@@ -1,2 +1,2 @@
-"""MCP tool implementations for Arda Vector Database server."""
+"""MCP tool implementations for code search server."""
 

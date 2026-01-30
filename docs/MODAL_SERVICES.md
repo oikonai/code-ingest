@@ -223,9 +223,9 @@ After deployment, copy the endpoint URLs to `.env`:
 
 ```bash
 # .env
-MODAL_ENDPOINT=https://ardaglobal--embed.modal.run
-DEEPSEEK_OCR_ENDPOINT=https://ardaglobal--process-image.modal.run
-NUEXTRACT_ENDPOINT=https://ardaglobal--extract.modal.run
+MODAL_ENDPOINT=https://your-org--embed.modal.run
+DEEPSEEK_OCR_ENDPOINT=https://your-org--process-image.modal.run
+NUEXTRACT_ENDPOINT=https://your-org--extract.modal.run
 ```
 
 ## Performance Characteristics

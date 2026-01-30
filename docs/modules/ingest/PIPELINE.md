@@ -69,7 +69,7 @@ For Each Language:
         ↓
     StorageManager
         ├─ Upsert to Qdrant collection
-        ├─ Collection mapping: rust → arda_code_rust
+        ├─ Collection mapping: rust → {prefix}_code_rust (from config)
         └─ Save checkpoint every N files
         ↓
 Aggregated Statistics
@@ -123,8 +123,8 @@ class IngestionPipeline:
 ```python
 @dataclass
 class IngestionConfig:
-    # Modal TEI endpoint
-    modal_endpoint: str = "https://ardaglobal--embed.modal.run"
+    # Modal TEI endpoint (optional - Cloudflare AI Gateway recommended)
+    # modal_endpoint: str = "https://your-org--embed.modal.run"
 
     # Checkpoint configuration
     checkpoint_file: Path = Path("./ingestion_checkpoint.json")
@@ -141,16 +141,16 @@ class IngestionConfig:
     embedding_timeout: int = 120        # 2 minutes
     warmup_timeout: int = 120           # 2 minutes
 
-    # Collection names by language
+    # Collection names by language (loaded from config/collections.yaml)
     collections: Dict[str, str] = {
-        'rust': 'arda_code_rust',
-        'typescript': 'arda_code_typescript',
-        'javascript': 'arda_code_typescript',
-        'jsx': 'arda_code_typescript',
-        'tsx': 'arda_code_typescript',
-        'solidity': 'arda_code_solidity',
-        'documentation': 'arda_documentation',
-        'mixed': 'arda_code_mixed'      # Cross-language search
+        'rust': '{prefix}_code_rust',
+        'typescript': '{prefix}_code_typescript',
+        'javascript': '{prefix}_code_typescript',
+        'jsx': '{prefix}_code_typescript',
+        'tsx': '{prefix}_code_typescript',
+        'solidity': '{prefix}_code_solidity',
+        'documentation': '{prefix}_documentation',
+        'mixed': '{prefix}_code_mixed'      # Cross-language search
     }
 
     # Business domain patterns (for classification)
@@ -207,8 +207,8 @@ class RepoConfig:
 repos_base_dir: ./repos
 
 repositories:
-  - id: arda-credit
-    github_url: https://github.com/ardaglobal/arda-credit
+  - id: my-backend
+    github_url: https://github.com/myorg/my-backend
     repo_type: backend
     languages:
       - rust
@@ -332,10 +332,10 @@ stats = pipeline.ingest_repositories(repositories=custom_repos)
         'documentation': 45
     },
     'chunks_by_collection': {
-        'arda_code_rust': 18234,
-        'arda_code_typescript': 24567,
-        'arda_code_solidity': 3456,
-        'arda_documentation': 567
+        '{prefix}_code_rust': 18234,
+        '{prefix}_code_typescript': 24567,
+        '{prefix}_code_solidity': 3456,
+        '{prefix}_documentation': 567
     },
     'business_domains': {
         'finance': 12345,
@@ -412,7 +412,7 @@ results = pipeline.search_across_languages(
                 'item_type': 'function',
                 'language': 'rust',
                 'business_domain': 'finance',
-                'repo_id': 'arda-credit'
+                'repo_id': 'my-backend'
             },
             'content': 'pub fn approve_loan(loan_id: LoanId) -> Result<...> { ... }'
         }
@@ -484,7 +484,7 @@ Resume ingestion from last successful point if interrupted (network failure, OOM
 
 ```json
 {
-    "repo_id": "arda-credit",
+    "repo_id": "my-backend",
     "language": "rust",
     "last_processed_file": "backend/loan_service.rs",
     "files_processed": 123,
@@ -708,12 +708,12 @@ if 'Embedding generation failed' in stats['errors']:
 🔥 Warming up services...
 ✅ All services ready
 🏢 Starting repository ingestion
-📂 Processing repository: arda-credit
-📝 Processing 245 rust files in arda-credit
+📂 Processing repository: my-backend
+📝 Processing 245 rust files in my-backend
   ⏳ Processing file 1/245: backend/main.rs
   ⏳ Processing file 10/245: backend/loan_service.rs (checkpoint saved)
   ...
-📝 Processing 189 typescript files in arda-credit
+📝 Processing 189 typescript files in my-backend
 ✅ Repository ingestion complete
 
 ============================================================
@@ -726,10 +726,10 @@ if 'Embedding generation failed' in stats['errors']:
     solidity: 23
     documentation: 45
   Chunks by collection:
-    arda_code_rust: 18234
-    arda_code_typescript: 24567
-    arda_code_solidity: 3456
-    arda_documentation: 567
+    {prefix}_code_rust: 18234
+    {prefix}_code_typescript: 24567
+    {prefix}_code_solidity: 3456
+    {prefix}_documentation: 567
   Business domains:
     finance: 12345
     auth: 5678

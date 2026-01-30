@@ -97,25 +97,25 @@ Collection names are defined in `config/collections.yaml` (shared with the inges
 The `config/collections.yaml` file defines collection names and aliases. This file is shared between the ingestion pipeline and MCP server:
 
 ```yaml
-collection_prefix: arda  # Optional prefix
+collection_prefix: myproject  # Customize for your org
 
 language_collections:
-  rust: arda_code_rust
-  typescript: arda_code_typescript
-  python: arda_code_python
+  rust: myproject_code_rust
+  typescript: myproject_code_typescript
+  python: myproject_code_python
   # ...
 
 service_collections:
-  frontend: arda_frontend
-  backend: arda_backend
+  frontend: myproject_frontend
+  backend: myproject_backend
   # ...
 
 aliases:
-  rust: arda_code_rust
-  ts: arda_code_typescript
+  rust: myproject_code_rust
+  ts: myproject_code_typescript
   # ...
 
-default_collection: arda_code_rust
+default_collection: myproject_code_rust
 ```
 
 **Why share this config?** The ingestion pipeline writes to these collections; the MCP server searches them. Keeping them in sync prevents "collection not found" errors.
@@ -186,9 +186,9 @@ Threshold: 0.5
 ### Using Aliases
 
 Collection aliases make queries shorter:
-- `rust` → `arda_code_rust`
-- `ts` → `arda_code_typescript`
-- `backend` → `arda_backend`
+- `rust` → `{prefix}_code_rust` (e.g. `myproject_code_rust`)
+- `ts` → `{prefix}_code_typescript`
+- `backend` → `{prefix}_backend`
 
 ## Architecture
 

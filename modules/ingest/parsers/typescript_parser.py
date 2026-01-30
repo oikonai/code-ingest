@@ -373,7 +373,7 @@ class TypeScriptASTParser:
         chunks = []
         lines = content.split('\n')
         
-        # Enhanced patterns based on arda-credit-app analysis
+        # Enhanced patterns for React/TypeScript app structure
         patterns = [
             # React function components
             (r'^export\s+function\s+([A-Z][a-zA-Z0-9]*)\s*\([^)]*\)\s*\{', 'react_component'),

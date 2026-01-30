@@ -13,7 +13,7 @@ The Code Ingestion System is a production-ready pipeline for transforming GitHub
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                   GitHub Repositories                       │
-│                 (ardaglobal organization)                   │
+│                 (your GitHub organization)                  │
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐

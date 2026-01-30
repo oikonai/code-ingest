@@ -1,5 +1,5 @@
 """
-Response Formatter for Arda MCP Server
+Response Formatter for Code Ingestion MCP Server
 
 Formats MCP tool responses for optimal IDE integration (Cursor, Claude Code).
 Provides clickable file paths, concise summaries, and action suggestions.
@@ -172,7 +172,7 @@ class ResponseFormatter:
                 ],
                 "related_queries": [
                     "What services are deployed?",
-                    "Trace arda-credit dependencies",
+                    "Trace service dependencies",
                     "Find frontend components"
                 ]
             }

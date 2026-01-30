@@ -13,7 +13,7 @@ Code Ingest MCP Server - A minimal FastMCP server providing semantic code search
 - **4 Core Tools**: Collection management + semantic search (single and multi-collection)
 - **2 Generic Resources**: Collection info + search tips
 - **Config-Driven**: Collection names from shared YAML (synchronized with ingestion)
-- **No Domain Logic**: No ARDA-specific or project-specific prompts/resources
+- **No Domain Logic**: No hard-coded product names or project-specific prompts/resources
 
 ## Environment Setup
 
@@ -210,7 +210,7 @@ cross_collection_search(
 ## Removed Features (from v1.x)
 
 **Removed for minimal implementation:**
-- ❌ Prompts (12 ARDA-specific prompts)
+- ❌ Prompts (project-specific prompts removed for genericity)
 - ❌ Domain tools (get_auth_systems, get_stack_overview, get_deployed_services)
 - ❌ Metadata tools (list_resources, list_prompts, get_prompt)
 - ❌ Code quality tools (code_quality_check, detect_code_smells, etc.)

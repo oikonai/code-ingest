@@ -82,7 +82,7 @@ def search_across_languages(
                 "end_line": 78,
                 "language": "rust",
                 "chunk_type": "function_item",
-                "repository": "arda-credit",
+                "repository": "my-backend",
                 "component": "api"
             }
         },
@@ -227,7 +227,7 @@ results = vector_client.search(
     collection_name="rust",
     query_vector=query_vector,
     filter_conditions={
-        "repository": "arda-credit",
+        "repository": "my-backend",
         "component": "api"
     }
 )

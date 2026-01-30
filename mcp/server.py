@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Arda Vector Database MCP Server
+Code Ingestion MCP Server
 
 FastMCP server providing semantic code search capabilities through Qdrant
-vector database integration. Exposes i2p's vector search infrastructure
-to Cursor IDE and other MCP-compatible AI coding assistants.
+vector database integration. Enables semantic search over ingested code
+repositories for Cursor IDE and other MCP-compatible AI coding assistants.
 
 Features:
-- Semantic code search across Rust, TypeScript, Solidity codebases
-- Domain-specific prompts and resources for Arda Credit platform
+- Semantic code search across multiple programming languages
+- Config-driven collection naming (from config/collections.yaml)
 - Smart query routing and caching
 - Collection management and health monitoring
 
 Architecture:
-- Modular design with tools, prompts, and resources in separate modules
+- Modular design with tools and resources in separate modules
 - Read-only vector database operations (no ingestion)
 - 4096-dimensional embeddings (Qwen3-Embedding-8B)
 - Cosine similarity search with 30-minute query caching

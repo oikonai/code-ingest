@@ -1,2 +1,2 @@
-"""MCP prompt definitions for Arda Credit domain-specific search patterns."""
+"""MCP prompt definitions (currently empty - generic server)."""
 

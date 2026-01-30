@@ -4,12 +4,14 @@ import logging
 from typing import Dict, List, Set
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError, NotFoundError
+from ..config import load_collections_config
 
 logger = logging.getLogger(__name__)
 
 # These will be set by server module and imported from search module
 _semantic_search_impl = None
 _list_collections_impl = None
+_collections_config = None
 
 
 def set_domain_dependencies(semantic_search_fn, list_collections_fn):
@@ -20,9 +22,10 @@ def set_domain_dependencies(semantic_search_fn, list_collections_fn):
         semantic_search_fn: Function to perform semantic search
         list_collections_fn: Function to list collections
     """
-    global _semantic_search_impl, _list_collections_impl
+    global _semantic_search_impl, _list_collections_impl, _collections_config
     _semantic_search_impl = semantic_search_fn
     _list_collections_impl = list_collections_fn
+    _collections_config = load_collections_config()
 
 
 # Helper functions
@@ -85,10 +88,17 @@ async def _build_service_flow() -> Dict:
 
 async def _get_deployment_info() -> Dict:
     """Get deployment information from Helm charts."""
+    # Load collections config if not available
+    if not _collections_config:
+        global _collections_config
+        _collections_config = load_collections_config()
+    
+    deploy_coll = _collections_config.get('concern', {}).get('deployment', 'deployment')
+    
     try:
         deployment_results = await _semantic_search_impl(
             query="helm chart deployment configuration",
-            collection_name="arda_deployment",
+            collection_name=deploy_coll,
             limit=20,
             score_threshold=0.6
         )
@@ -116,7 +126,8 @@ async def _get_service_api_endpoints(service_name: str) -> List[Dict]:
     
     try:
         # Try to find the service's collection
-        collection_name = f"arda_repo_{service_name.replace('arda-', '')}"
+        # Use backend collection as default for service-specific searches
+        collection_name = _collections_config.get('service', {}).get('backend', 'backend')
         
         endpoint_results = await _semantic_search_impl(
             query="API endpoint route handler",
@@ -192,7 +203,8 @@ async def _get_deployed_services_impl(environment: str = "production") -> dict:
         }
     
     except NotFoundError:
-        logger.warning(f"arda_deployment collection not found")
+        deploy_coll = _collections_config.get('concern', {}).get('deployment', 'deployment')
+        logger.warning(f"{deploy_coll} collection not found")
         return {
             "environment": environment,
             "services_count": 0,
@@ -212,7 +224,7 @@ async def _get_deployed_services_impl(environment: str = "production") -> dict:
 # Implementation functions for smart_search to call
 async def get_auth_systems_impl() -> dict:
     """Implementation of get_auth_systems for internal/smart_search use."""
-    logger.info("🔍 Analyzing authentication systems across Arda stack")
+    logger.info("🔍 Analyzing authentication systems across ingested stack")
     
     auth_queries = [
         "JWT authentication implementation",
@@ -234,7 +246,7 @@ async def get_auth_systems_impl() -> dict:
             try:
                 frontend_results = await _semantic_search_impl(
                     query=query,
-                    collection_name="arda_frontend",
+                    collection_name=_collections_config.get('service', {}).get('frontend', 'frontend'),
                     limit=5,
                     score_threshold=0.65
                 )
@@ -242,7 +254,7 @@ async def get_auth_systems_impl() -> dict:
             except NotFoundError:
                 frontend_results = await _semantic_search_impl(
                     query=query,
-                    collection_name="arda_code_typescript",
+                    collection_name=_collections_config.get('language', {}).get('typescript', 'code_typescript'),
                     limit=5,
                     score_threshold=0.65
                 )
@@ -256,7 +268,7 @@ async def get_auth_systems_impl() -> dict:
             try:
                 backend_results = await _semantic_search_impl(
                     query=query,
-                    collection_name="arda_backend",
+                    collection_name=_collections_config.get('service', {}).get('backend', 'backend'),
                     limit=5,
                     score_threshold=0.65
                 )
@@ -264,7 +276,7 @@ async def get_auth_systems_impl() -> dict:
             except NotFoundError:
                 backend_results = await _semantic_search_impl(
                     query=query,
-                    collection_name="arda_code_rust",
+                    collection_name=_collections_config.get('language', {}).get('rust', 'code_rust'),
                     limit=5,
                     score_threshold=0.65
                 )
@@ -278,7 +290,7 @@ async def get_auth_systems_impl() -> dict:
             try:
                 middleware_results = await _semantic_search_impl(
                     query=query,
-                    collection_name="arda_middleware",
+                    collection_name=_collections_config.get('service', {}).get('middleware', 'middleware'),
                     limit=5,
                     score_threshold=0.65
                 )
@@ -289,7 +301,7 @@ async def get_auth_systems_impl() -> dict:
         logger.warning(f"Middleware auth search failed: {e}")
     
     auth_systems = {
-        "summary": "Authentication systems across Arda stack",
+        "summary": "Authentication systems across ingested stack",
         "by_layer": results_by_layer,
         "key_implementations": _extract_key_implementations(results_by_layer),
         "auth_flows": _identify_auth_flows(results_by_layer)
@@ -302,13 +314,13 @@ async def get_auth_systems_impl() -> dict:
 
 async def get_stack_overview_impl() -> dict:
     """Implementation of get_stack_overview for internal/smart_search use."""
-    logger.info("🔍 Building comprehensive Arda stack overview")
+    logger.info("🔍 Building comprehensive stack overview")
     
     # Query for high-level architectural documents
     try:
         overview_results = await _semantic_search_impl(
             query="system architecture overview components services",
-            collection_name="arda_documentation",
+            collection_name=_collections_config.get('language', {}).get('documentation', 'documentation'),
             limit=10,
             score_threshold=0.6
         )
@@ -356,7 +368,7 @@ async def get_stack_overview_impl() -> dict:
     logger.info("✅ Stack overview complete")
     
     return {
-        "summary": "Complete Arda technical stack",
+        "summary": "Complete technical stack overview",
         "services_by_type": repos_by_type,
         "service_flow": service_flow,
         "deployment_info": deployment_info,
@@ -369,18 +381,28 @@ async def find_service_location_impl(query: str, search_scope: str = "all") -> d
     """Implementation of find_service_location for internal/smart_search use."""
     logger.info(f"🔍 Finding service location: '{query}' (scope={search_scope})")
     
-    # Determine collections to search based on scope
+    # Load collections config if not already loaded
+    if not _collections_config:
+        global _collections_config
+        _collections_config = load_collections_config()
+    
+    # Determine collections to search based on scope (using config or defaults)
     collections = []
     if search_scope == "all":
-        collections = ["arda_code_rust", "arda_code_typescript", "arda_code_solidity"]
+        rust_coll = _collections_config.get('language', {}).get('rust', 'code_rust')
+        ts_coll = _collections_config.get('language', {}).get('typescript', 'code_typescript')
+        sol_coll = _collections_config.get('language', {}).get('solidity', 'code_solidity')
+        collections = [rust_coll, ts_coll, sol_coll]
     elif search_scope == "frontend":
-        collections = ["arda_code_typescript"]
+        collections = [_collections_config.get('language', {}).get('typescript', 'code_typescript')]
     elif search_scope == "backend":
-        collections = ["arda_code_rust"]
+        collections = [_collections_config.get('language', {}).get('rust', 'code_rust')]
     elif search_scope == "infrastructure":
-        collections = ["arda_deployment"]
+        collections = [_collections_config.get('concern', {}).get('deployment', 'deployment')]
     else:
-        collections = ["arda_code_rust", "arda_code_typescript"]
+        rust_coll = _collections_config.get('language', {}).get('rust', 'code_rust')
+        ts_coll = _collections_config.get('language', {}).get('typescript', 'code_typescript')
+        collections = [rust_coll, ts_coll]
     
     all_results = []
     for collection in collections:
@@ -432,11 +454,18 @@ async def trace_service_dependencies_impl(service_name: str) -> dict:
     depends_on = set()
     depended_by = set()
     
+    # Load collections config if not available
+    if not _collections_config:
+        global _collections_config
+        _collections_config = load_collections_config()
+    
+    deploy_coll = _collections_config.get('concern', {}).get('deployment', 'deployment')
+    
     try:
         # Search for imports and dependencies
         dep_results = await _semantic_search_impl(
             query=f"{service_name} dependencies imports requires",
-            collection_name="arda_deployment",
+            collection_name=deploy_coll,
             limit=20,
             score_threshold=0.6
         )
@@ -482,15 +511,15 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def get_auth_systems() -> dict:
         """
-        Find all authentication implementations across the Arda stack.
-        
+        Find all authentication implementations across the ingested stack.
+
         Returns information about:
         - Authentication middleware
         - JWT/OAuth implementations
         - Session management
         - API authentication
-        
-        Use this to answer: "What are the authentication systems used across the ARDA stack?"
+
+        Use this to answer: "What are the authentication systems used across the stack?"
         
         Returns:
             Dictionary with authentication systems grouped by layer
@@ -501,15 +530,15 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     async def get_stack_overview() -> dict:
         """
-        Get a comprehensive overview of the entire Arda technical stack.
-        
+        Get a comprehensive overview of the entire technical stack.
+
         Returns:
         - All services grouped by type (frontend, backend, middleware, infrastructure)
         - Service dependencies
         - Deployment information
         - Technology stack
-        
-        Use this to answer: "Walk me through the ARDA technical stack"
+
+        Use this to answer: "Walk me through the technical stack"
         
         Returns:
             Dictionary with complete stack overview
@@ -573,7 +602,7 @@ def register_tools(mcp: FastMCP):
         Show complete dependency tree for a service.
         
         Args:
-            service_name: Name of the service (e.g., "arda-credit", "arda-platform")
+            service_name: Name of the service (e.g., "my-backend", "my-frontend")
         
         Returns:
             - Services this depends on
