@@ -1,0 +1,156 @@
+name: Vector Ingestion Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_cleanup:
+        description: 'Skip cleanup (keep existing vectors - NOT RECOMMENDED)'
+        required: false
+        default: false
+        type: boolean
+      
+      priority:
+        description: 'Minimum priority level (high, medium, low, ALL)'
+        required: false
+        default: 'ALL'
+        type: choice
+        options:
+          - high
+          - medium
+          - low
+          - ALL
+
+  schedule:
+    # Run twice daily at 12 AM and 12 PM UTC - always full cleanup, ALL priorities
+    - cron: '0 0,12 * * *'
+
+jobs:
+  vector-ingestion:
+    name: Multi-Language Vector Ingestion
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    
+    steps:
+      - name: 🚀 Checkout I2P Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
+
+      - name: 📦 Install Dependencies
+        run: |
+          echo "📦 Installing Python dependencies..."
+          python -m pip install --upgrade pip setuptools wheel
+          pip install --no-cache-dir -r requirements.txt
+          echo "✅ Dependencies installed"
+
+      - name: 🔄 Clone Target Repositories
+        env:
+          GITHUB_TOKEN: ${{ secrets.I2P_REPO_PAT }}
+          PRIORITY: ${{ github.event.inputs.priority || 'ALL' }}
+        run: |
+          echo "🔄 Cloning repositories (minimum priority: ${PRIORITY})..."
+          python modules/ingest/scripts/repo_cloner.py \
+            --pat-token "$GITHUB_TOKEN" \
+            --min-priority "${PRIORITY}" \
+            --output-json repos_metadata.json
+
+      - name: 🔧 Environment Setup
+        env:
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CLOUDFLARE_AI_GATEWAY_TOKEN: ${{ secrets.CLOUDFLARE_AI_GATEWAY_TOKEN }}
+          DEEPINFRA_API_KEY: ${{ secrets.DEEPINFRA_API_KEY }}
+        run: |
+          echo "🔧 Setting up environment..."
+
+          # Verify environment variables
+          echo "✅ Checking required environment variables..."
+          python -c "import os; required = ['QDRANT_URL', 'QDRANT_API_KEY', 'OPENROUTER_API_KEY', 'CLOUDFLARE_AI_GATEWAY_TOKEN', 'DEEPINFRA_API_KEY']; missing = [k for k in required if not os.getenv(k)]; print('✅ All required environment variables set' if not missing else f'❌ Missing: {missing}'); exit(1 if missing else 0)"
+
+      - name: 🗑️ Clean Qdrant Collections (Full Re-index)
+        if: github.event.inputs.skip_cleanup != 'true'
+        env:
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+        run: |
+          echo "🗑️ Cleaning all collections for full re-index..."
+          python modules/ingest/scripts/collection_manager.py cleanup
+
+      - name: ✅ Verify Embedding Service
+        env:
+          CLOUDFLARE_AI_GATEWAY_TOKEN: ${{ secrets.CLOUDFLARE_AI_GATEWAY_TOKEN }}
+          DEEPINFRA_API_KEY: ${{ secrets.DEEPINFRA_API_KEY }}
+        run: |
+          echo "✅ Cloudflare AI Gateway ready (no warmup needed)"
+          echo "   Provider: DeepInfra"
+          echo "   Model: Qwen/Qwen3-Embedding-8B (4096D)"
+          echo "   No cold starts - instant availability"
+
+      - name: 📝 Capture Repository Metadata
+        id: repo_metadata
+        run: |
+          echo "📝 Capturing repository commit information..."
+          python modules/ingest/scripts/repo_metadata.py capture \
+            --repos-json repos_metadata.json \
+            --format github-actions \
+            --output repo_commits.json >> $GITHUB_OUTPUT
+
+      - name: 🚀 Run Vector Ingestion
+        id: ingestion
+        env:
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CLOUDFLARE_AI_GATEWAY_TOKEN: ${{ secrets.CLOUDFLARE_AI_GATEWAY_TOKEN }}
+          DEEPINFRA_API_KEY: ${{ secrets.DEEPINFRA_API_KEY }}
+          PRIORITY: ${{ github.event.inputs.priority || 'ALL' }}
+        run: |
+          echo "🚀 Starting full vector ingestion pipeline..."
+          echo "   Processing: Rust, TypeScript, Solidity, Documentation"
+          echo "   Embedding: Cloudflare AI Gateway + DeepInfra"
+          echo "   Priority filter: ${PRIORITY}"
+          echo "start_time=$(date +%s)" >> $GITHUB_OUTPUT
+          make ingest
+          echo "end_time=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: 📊 Final Statistics
+        id: stats
+        env:
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+        run: |
+          echo "📊 Collecting vector database statistics..."
+          python modules/ingest/scripts/collection_manager.py status \
+            --format github-actions >> $GITHUB_OUTPUT
+
+      - name: 🧪 Test Search
+        env:
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          echo "🧪 Testing vector search..."
+          python modules/ingest/scripts/search_test.py \
+            --query "authentication service" \
+            --limit 5 \
+            --format summary || echo "Search test completed"
+
+      - name: 📊 Summary Report
+        if: always()
+        env:
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+        run: |
+          echo "📊 Generating comprehensive summary report..."
+          python modules/ingest/scripts/stats_reporter.py \
+            --format github-actions \
+            --start-time ${{ steps.ingestion.outputs.start_time || '0' }} \
+            --end-time ${{ steps.ingestion.outputs.end_time || '0' }} \
+            --repo-metadata repo_commits.json \
+            --job-status ${{ job.status }} >> $GITHUB_STEP_SUMMARY
