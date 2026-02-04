@@ -24,7 +24,8 @@ services:
     networks:
       - code-ingest-network
 
-  # Ingestion service - One-shot code ingestion
+  # Ingestion service - One-shot full re-ingestion (clone/refresh repos, discover, ingest, derive).
+  # To skip re-ingestion and use existing data, start only surrealdb and mcp: docker compose up surrealdb mcp
   ingest:
     build:
       context: .
@@ -34,8 +35,6 @@ services:
       surrealdb:
         condition: service_healthy
     environment:
-      # Vector backend configuration
-      - VECTOR_BACKEND=surrealdb
       - SURREALDB_URL=http://surrealdb:8000
       - SURREALDB_NS=code_ingest
       - SURREALDB_DB=vectors
@@ -71,8 +70,6 @@ services:
     ports:
       - "8001:8001"  # MCP server port
     environment:
-      # Vector backend configuration
-      - VECTOR_BACKEND=surrealdb
       - SURREALDB_URL=http://surrealdb:8000
       - SURREALDB_NS=code_ingest
       - SURREALDB_DB=vectors

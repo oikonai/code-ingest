@@ -23,7 +23,6 @@ This directory contains Docker Compose configuration for running the code ingest
 1. **Docker and Docker Compose** installed
 2. **Environment variables** configured:
    - Copy `.env.example` to `.env`
-   - Set `VECTOR_BACKEND=surrealdb`
    - Configure embedding service (DeepInfra)
    - Add GitHub token for repository cloning
 
@@ -33,7 +32,6 @@ This directory contains Docker Compose configuration for running the code ingest
    ```bash
    cp .env.example .env
    # Edit .env and set:
-   # - VECTOR_BACKEND=surrealdb
    # - DEEPINFRA_API_KEY
    # - GITHUB_TOKEN (for cloning repos)
    ```
@@ -45,8 +43,20 @@ This directory contains Docker Compose configuration for running the code ingest
 
    This will:
    - Start SurrealDB on port 8000
-   - Run ingestion (clones repos, ingests code, writes to SurrealDB)
+   - Run ingestion (full re-ingestion: clone or refresh repos with git pull, run discovery, ingest code to SurrealDB, derive dependencies)
    - Start MCP server on port 8001 with health endpoint
+
+   By default every run of the stack performs a full re-ingestion so recent commits and changes in repos are reflected.
+
+### Running without re-ingestion
+
+To use existing vector data and only run SurrealDB and the MCP server (skip ingestion):
+
+```bash
+docker compose up surrealdb mcp
+```
+
+Do not start the `ingest` service. MCP will serve queries against the existing vector data; no clone, refresh, or ingestion is performed.
 
 3. **Check health**:
    ```bash
@@ -83,8 +93,8 @@ This directory contains Docker Compose configuration for running the code ingest
 
 ### Ingestion
 - **Type**: One-shot (restarts: "no")
-- **Clones repos** from `config/repositories.yaml`
-- **Priority filter**: Set `PRIORITY=high|medium|low` in `.env` (default: high)
+- When the ingest service runs it: (1) clones repos from `config/repositories.yaml` if `/app/repos` is empty, otherwise refreshes them with `git pull`; (2) runs repository discovery (Helm, languages, repo type); (3) runs the full ingestion pipeline; (4) runs derive_dependencies. Each run is a full re-ingestion with up-to-date repo content.
+- **Priority filter**: Set `PRIORITY=high|medium|low|ALL` in `.env` (default: high)
 - **Status file**: Writes `/app/status/ingestion_complete` when done
 - **Logs**: `docker compose logs ingest`
 
@@ -185,18 +195,6 @@ docker compose up --build
 3. Configure Cursor MCP settings to connect to `http://localhost:8001`
 4. MCP server will query local SurrealDB for semantic code search
 
-## Cloud vs Local
+## Vector database
 
-**Local (Docker Compose)**:
-- `VECTOR_BACKEND=surrealdb`
-- No cloud costs
-- Full control over data
-- Requires Docker
-
-**Cloud (Qdrant)**:
-- `VECTOR_BACKEND=qdrant`
-- Set `QDRANT_URL` and `QDRANT_API_KEY`
-- Managed service
-- Network-dependent
-
-Both use the same ingestion pipeline and MCP server—only the vector backend changes.
+This setup uses **SurrealDB** as the vector database. It runs in a container with data persisted in a Docker volume. No cloud vector service is required.

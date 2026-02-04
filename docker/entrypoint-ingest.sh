@@ -25,14 +25,26 @@ if [ $attempt -eq $max_attempts ]; then
     exit 1
 fi
 
-# Clone repositories if repos directory is empty
+# Clone or refresh repositories
 if [ ! "$(ls -A /app/repos 2>/dev/null)" ]; then
     echo "📥 Cloning repositories..."
     python -m modules.ingest.scripts.repo_cloner --min-priority "${PRIORITY:-high}"
     echo "✅ Repositories cloned"
 else
-    echo "✅ Repositories already present"
+    echo "🔄 Refreshing existing repositories (git pull)..."
+    for repo_dir in /app/repos/*/ ; do
+        if [ -d "${repo_dir}.git" ]; then
+            name=$(basename "$repo_dir")
+            echo "   Refreshing $name..."
+            (cd "$repo_dir" && git pull --ff-only) || true
+        fi
+    done
+    echo "✅ Repositories refreshed"
 fi
+
+# Update discovered config (Helm, languages, repo type)
+echo "🔍 Running repository discovery..."
+python -m modules.ingest.scripts.repo_discovery || true
 
 # Run ingestion
 echo "🚀 Starting ingestion pipeline..."
@@ -66,6 +78,10 @@ except Exception as e:
     traceback.print_exc()
     sys.exit(1)
 "
+
+# Update derived service_dependencies from YAML/Helm
+echo "🔗 Deriving service dependencies..."
+python -m modules.ingest.scripts.derive_dependencies || true
 
 echo "=================================================="
 echo "Ingestion service completed"

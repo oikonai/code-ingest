@@ -19,7 +19,7 @@
 # Optional prefix for collection names (e.g. "arda" -> arda_code_rust).
 # CUSTOMIZE: Set to your project/org name, or leave empty for no prefix.
 # With empty prefix, collection names are the suffix as-is (e.g. code_rust).
-collection_prefix: arda  # Example value - replace with your prefix
+collection_prefix: eco  # Example value - replace with your prefix
 
 # BY_LANGUAGE: Maps programming languages to collection name SUFFIXES
 language_collections:

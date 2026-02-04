@@ -1,7 +1,7 @@
 # Code Ingestion System - Multi-Language Vector Database Pipeline
 # Comprehensive Makefile for ingestion capabilities
 
-.PHONY: help install deps setup venv sync test clean ingest ingest-warmup ingest-search vector-status index-check clone-repos clone-repos-medium clone-repos-all discover-repos derive-dependencies collection-cleanup collection-status repo-metadata stats-report health check-env status info
+.PHONY: help install deps setup venv sync test clean ingest ingest-warmup ingest-search vector-status index-check clone-repos clone-repos-medium clone-repos-all discover-repos derive-dependencies collection-cleanup collection-status repo-metadata stats-report health check-env status info up up-mcp down
 
 # Colors for better readability
 YELLOW := \033[33m
@@ -37,6 +37,11 @@ help:
 	@echo "  make collection-status    Get detailed collection statistics"
 	@echo "  make repo-metadata        Capture repository commit metadata"
 	@echo "  make stats-report         Generate comprehensive statistics report"
+	@echo ""
+	@echo "$(BLUE)🐳 Docker Compose:$(RESET)"
+	@echo "  make up               Start all services (SurrealDB, ingest, MCP); full re-ingestion runs"
+	@echo "  make up-mcp           Start only SurrealDB and MCP; skip ingestion, use existing data"
+	@echo "  make down             Stop and remove containers"
 	@echo ""
 	@echo "$(BLUE)⚙️  System Management:$(RESET)"
 	@echo "  make health           System health check (ingestion + vector search)"
@@ -192,6 +197,16 @@ clean:
 	@rm -rf __pycache__/ */__pycache__/ */*/__pycache__/
 	@rm -rf *.cache
 	@echo "$(GREEN)✅ Cleanup complete$(RESET)"
+
+# Docker Compose
+up:
+	docker compose up
+
+up-mcp:
+	docker compose up surrealdb mcp
+
+down:
+	docker compose down
 
 # Utility targets
 .PHONY: status info
