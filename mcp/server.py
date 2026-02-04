@@ -21,6 +21,7 @@ Architecture:
 
 import os
 import sys
+import time
 import logging
 import httpx
 import asyncio
@@ -31,6 +32,7 @@ from dotenv import load_dotenv
 # FastMCP framework
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError, ResourceError, NotFoundError
+from starlette.responses import JSONResponse
 
 # Import vector backend abstraction
 import sys
@@ -77,61 +79,6 @@ _query_cache: QueryCache = QueryCache(ttl_minutes=30, max_size=1000)
 
 
 # ============================================================================
-# Helper Functions
-# ============================================================================
-
-async def warmup_embedding_endpoint(base_url: str, deepinfra_key: str, model: str = 'Qwen/Qwen3-Embedding-8B-batch', timeout: float = 30.0) -> bool:
-    """
-    Pre-warm the embedding endpoint to avoid cold start delays.
-
-    This function sends a test query to wake up the endpoint before
-    actual requests are made.
-
-    Args:
-        base_url: DeepInfra API base URL
-        deepinfra_key: DeepInfra API key
-        model: Embedding model name
-        timeout: Maximum time to wait for warmup (default: 30s)
-
-    Returns:
-        True if warmup successful, False otherwise
-    """
-    logger.info("🔥 Warming up embedding endpoint...")
-    logger.info(f"   Base URL: {base_url[:60]}...")
-
-    try:
-        from openai import OpenAI
-        
-        client = OpenAI(
-            api_key=deepinfra_key,
-            base_url=base_url,
-            timeout=timeout
-        )
-        
-        response = client.embeddings.create(
-            model=model,
-            input=["warmup query"],
-            encoding_format="float"
-        )
-
-        # Check response
-        if response.data and len(response.data) > 0:
-            embedding = response.data[0].embedding
-            if len(embedding) > 0:
-                logger.info("✅ Embedding endpoint warmed up successfully")
-                return True
-        logger.warning("⚠️  Embedding endpoint responded but format unexpected")
-        return False
-
-    except asyncio.TimeoutError:
-        logger.warning(f"⚠️  Embedding endpoint warmup timed out after {timeout}s - endpoint may be cold")
-        return False
-    except Exception as e:
-        logger.error(f"❌ Embedding endpoint warmup failed: {e}")
-        return False
-
-
-# ============================================================================
 # Server Lifecycle
 # ============================================================================
 
@@ -144,7 +91,6 @@ async def lifespan(server: FastMCP):
     - Validates environment configuration
     - Initializes SurrealDB vector backend
     - Registers tools, prompts, and resources
-    - Pre-warms embedding endpoint
     - Cleans up connections on shutdown
     """
     global _vector_client, _embedding_endpoint, _cloudflare_api_token, _config
@@ -169,35 +115,24 @@ async def lifespan(server: FastMCP):
         register_all_features()
         logger.info("✅ All features registered successfully")
 
-        # Pre-warm embedding endpoint (runs in background)
-        embedding_warmup_task = asyncio.create_task(
-            warmup_embedding_endpoint(config['embedding_base_url'], config['deepinfra_api_key'], config['embedding_model'])
-        )
-
         logger.info("=" * 80)
         logger.info("✅ Server initialization complete")
         logger.info(f"📡 {SERVER_NAME} is ready to accept MCP connections")
         logger.info("=" * 80)
 
-        # Start health endpoint server (in Docker)
-        health_server = None
-        if os.getenv('DOCKER_ENV') == 'true' or os.getenv('ENABLE_HEALTH_ENDPOINT') == 'true':
+        # Start health endpoint server only when NOT using HTTP transport (local dev).
+        # In Docker we use transport="http" and serve /health via a custom route.
+        if os.getenv('DOCKER_ENV') != 'true' and os.getenv('ENABLE_HEALTH_ENDPOINT') != 'true':
             try:
                 from health_server import start_health_server
                 health_port = int(os.getenv('HEALTH_PORT', '8001'))
-                health_server = start_health_server(port=health_port)
+                start_health_server(port=health_port)
                 logger.info(f"🏥 Health endpoint available at http://0.0.0.0:{health_port}/health")
             except Exception as e:
                 logger.warning(f"⚠️  Failed to start health endpoint: {e}")
 
         # Yield control to server
         yield {"vector_client": vector_client, "embedding_endpoint": config['embedding_endpoint']}
-
-        # Wait for warmup task to complete before shutdown
-        try:
-            await asyncio.wait_for(embedding_warmup_task, timeout=35.0)
-        except asyncio.TimeoutError:
-            embedding_warmup_task.cancel()
 
     except ValueError as e:
         logger.error("=" * 80)
@@ -228,6 +163,15 @@ async def lifespan(server: FastMCP):
 
 # Initialize FastMCP server with lifespan
 mcp = FastMCP(SERVER_NAME, lifespan=lifespan)
+
+
+# Custom /health route (used when running with transport="http" in Docker)
+@mcp.custom_route("/health", methods=["GET"])
+async def health_route(request):
+    """Health check: SurrealDB and ingestion status. Used by Docker healthcheck and Cursor."""
+    from health_server import get_health_response
+    body, status_code = get_health_response()
+    return JSONResponse(body, status_code=status_code)
 
 
 # ============================================================================
@@ -265,7 +209,7 @@ def register_all_features():
         _vector_client,
         _config.get('deepinfra_api_key'),
         _config.get('embedding_base_url', 'https://api.deepinfra.com/v1/openai'),
-        _config.get('embedding_model', 'Qwen/Qwen3-Embedding-8B-batch'),
+        _config.get('embedding_model', 'Qwen/Qwen3-Embedding-8B'),
         _query_cache
     )
 
@@ -308,7 +252,7 @@ def validate_environment() -> Dict[str, Any]:
     
     # Optional: embedding endpoint override (defaults to DeepInfra)
     embedding_base_url = os.getenv('EMBEDDING_ENDPOINT', 'https://api.deepinfra.com/v1/openai')
-    embedding_model = os.getenv('EMBEDDING_MODEL', 'Qwen/Qwen3-Embedding-8B-batch')
+    embedding_model = os.getenv('EMBEDDING_MODEL', 'Qwen/Qwen3-Embedding-8B')
 
     if not surrealdb_url:
         raise ValueError(
@@ -326,6 +270,7 @@ def validate_environment() -> Dict[str, Any]:
         'surrealdb_url': surrealdb_url,
         'deepinfra_api_key': deepinfra_api_key,
         'embedding_base_url': embedding_base_url,
+        'embedding_endpoint': embedding_base_url,
         'embedding_model': embedding_model,
     }
 
@@ -397,11 +342,16 @@ def main():
     """
     Main entry point for the MCP server.
 
-    The lifespan context manager handles initialization and cleanup.
-    This function just starts the server.
+    - In Docker (DOCKER_ENV or ENABLE_HEALTH_ENDPOINT): run HTTP transport on HEALTH_PORT
+      so the container serves MCP and /health. Cursor connects via SSE URL (e.g. http://localhost:8001/mcp).
+    - Otherwise: run stdio transport for local/dev use (e.g. Cursor with command).
     """
-    # Start FastMCP server (lifespan handles initialization)
-    mcp.run()
+    if os.getenv("DOCKER_ENV") == "true" or os.getenv("ENABLE_HEALTH_ENDPOINT") == "true":
+        port = int(os.getenv("HEALTH_PORT", "8001"))
+        logger.info(f"🌐 Starting MCP over HTTP on 0.0.0.0:{port} (connect at http://localhost:{port}/mcp)")
+        mcp.run(transport="http", host="0.0.0.0", port=port)
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":

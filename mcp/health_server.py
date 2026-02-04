@@ -15,6 +15,52 @@ from threading import Thread
 logger = logging.getLogger(__name__)
 
 
+def check_surrealdb() -> bool:
+    """Check if SurrealDB is accessible (module-level for reuse)."""
+    import urllib.request
+    surrealdb_url = os.getenv('SURREALDB_URL', 'http://localhost:8000')
+    try:
+        req = urllib.request.Request(f'{surrealdb_url}/health')
+        with urllib.request.urlopen(req, timeout=2) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+
+def check_ingestion_complete() -> bool:
+    """Check if ingestion has completed (module-level for reuse)."""
+    status_file = '/app/status/ingestion_complete'
+    if not os.path.exists(status_file):
+        return False
+    try:
+        with open(status_file, 'r') as f:
+            return f.read().strip() == 'complete'
+    except Exception:
+        return False
+
+
+def get_health_response() -> tuple[dict, int]:
+    """
+    Return (JSON body, status_code) for the health endpoint.
+    Status 200 when SurrealDB is reachable (so Docker healthcheck passes).
+    """
+    surrealdb_ok = check_surrealdb()
+    ingestion_complete = check_ingestion_complete()
+    if surrealdb_ok and ingestion_complete:
+        status = 'ready'
+    elif surrealdb_ok and not ingestion_complete:
+        status = 'waiting_for_ingestion'
+    else:
+        status = 'unhealthy'
+    status_code = 200 if surrealdb_ok else 503
+    body = {
+        'status': status,
+        'surrealdb': 'ok' if surrealdb_ok else 'unavailable',
+        'ingestion': 'complete' if ingestion_complete else 'pending'
+    }
+    return body, status_code
+
+
 class HealthHandler(BaseHTTPRequestHandler):
     """HTTP handler for health endpoint."""
     
@@ -30,64 +76,11 @@ class HealthHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'Not Found')
             return
         
-        # Check SurrealDB
-        surrealdb_ok = self._check_surrealdb()
-        
-        # Check ingestion status (optional)
-        ingestion_complete = self._check_ingestion_complete()
-        
-        # Overall status
-        if surrealdb_ok and ingestion_complete:
-            status_code = 200
-            status = 'ready'
-        elif surrealdb_ok and not ingestion_complete:
-            status_code = 503
-            status = 'waiting_for_ingestion'
-        else:
-            status_code = 503
-            status = 'unhealthy'
-        
-        # Build response
-        response = {
-            'status': status,
-            'surrealdb': 'ok' if surrealdb_ok else 'unavailable',
-            'ingestion': 'complete' if ingestion_complete else 'pending'
-        }
-        
-        # Send response
+        body, status_code = get_health_response()
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
-        self.wfile.write(json.dumps(response).encode('utf-8'))
-    
-    def _check_surrealdb(self) -> bool:
-        """Check if SurrealDB is accessible."""
-        import urllib.request
-        
-        surrealdb_url = os.getenv('SURREALDB_URL', 'http://localhost:8000')
-        
-        try:
-            req = urllib.request.Request(f'{surrealdb_url}/health')
-            with urllib.request.urlopen(req, timeout=2) as response:
-                return response.status == 200
-        except Exception:
-            return False
-    
-    def _check_ingestion_complete(self) -> bool:
-        """Check if ingestion has completed."""
-        status_file = '/app/status/ingestion_complete'
-        
-        # If file doesn't exist, ingestion not complete
-        if not os.path.exists(status_file):
-            return False
-        
-        # Check file content
-        try:
-            with open(status_file, 'r') as f:
-                content = f.read().strip()
-                return content == 'complete'
-        except Exception:
-            return False
+        self.wfile.write(json.dumps(body).encode('utf-8'))
 
 
 def start_health_server(port: int = 8001, host: str = '0.0.0.0'):

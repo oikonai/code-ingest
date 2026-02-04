@@ -59,8 +59,8 @@ class SurrealDBVectorClient:
         self.client = Surreal(self.url)
         
         try:
-            # Sign in
-            self.client.signin({"user": self.username, "pass": self.password})
+            # Sign in (root user: use username/password per SDK docs)
+            self.client.signin({"username": self.username, "password": self.password})
             
             # Use namespace and database
             self.client.use(self.namespace, self.database)

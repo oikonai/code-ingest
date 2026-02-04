@@ -239,7 +239,7 @@ Typical order: clone → (optional) discover-repos → ingest → (optional) der
 │    │   Body:                                  │             │
 │    │   {                                     │             │
 │    │     "input": ["code chunk 1", ...],    │             │
-│    │     "model": "Qwen/Qwen3-Embedding-8B-batch" │        │
+│    │     "model": "Qwen/Qwen3-Embedding-8B" │        │
 │    │   }                                     │             │
 │    │                                         │             │
 │    │ Response:                               │             │

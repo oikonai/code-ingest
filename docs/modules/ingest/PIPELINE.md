@@ -7,7 +7,7 @@
 
 ## Overview
 
-The `IngestionPipeline` is the main orchestrator for ingesting multi-language codebases (Rust, TypeScript, Solidity, Markdown documentation) into Qdrant vector database. It coordinates service initialization, file processing, checkpoint management, and cross-language search capabilities using Qwen3-Embedding-8B-batch (4096D) embeddings via DeepInfra API.
+The `IngestionPipeline` is the main orchestrator for ingesting multi-language codebases (Rust, TypeScript, Solidity, Markdown documentation) into Qdrant vector database. It coordinates service initialization, file processing, checkpoint management, and cross-language search capabilities using Qwen3-Embedding-8B (4096D) embeddings via DeepInfra API.
 
 ## Architecture
 

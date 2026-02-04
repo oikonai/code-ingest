@@ -1,10 +1,31 @@
-version: '3.8'
-
 services:
+  # Debug: run once to log /data volume permissions. Log is written inside the
+  # surrealdb-data volume at /data/debug.log, then copied to .cursor/debug.log.
+  # Run: docker compose run --rm --profile debug debug-surrealdb-volume
+  debug-surrealdb-volume:
+    build:
+      context: .
+      dockerfile: Dockerfile.ingest
+    image: code-ingest-ingest
+    container_name: code-ingest-debug-volume
+    user: "0"
+    volumes:
+      - surrealdb-data:/data
+      - .:/workspace
+    environment:
+      - DEBUG_LOG_PATH=/data/debug.log
+      - COPY_LOG_TO=/workspace/.cursor/debug.log
+    command: ["python3", "/workspace/scripts/debug_surrealdb_volume.py"]
+    profiles:
+      - debug
+
   # SurrealDB - Local vector database
+  # Run as root (user: "0") so the process can write to the mounted volume; the image
+  # default is UID 65532 and Docker volumes are typically root-owned (permission denied).
   surrealdb:
     image: surrealdb/surrealdb:latest
     container_name: code-ingest-surrealdb
+    user: "0"
     ports:
       - "8000:8000"
     volumes:
@@ -15,12 +36,8 @@ services:
       --user root
       --pass root
       file:/data/database.db
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+    # No healthcheck: image is minimal (no curl/shell). Ingest and MCP entrypoints
+    # wait for SURREALDB_URL/health before proceeding.
     networks:
       - code-ingest-network
 
@@ -32,8 +49,7 @@ services:
       dockerfile: Dockerfile.ingest
     container_name: code-ingest-ingestion
     depends_on:
-      surrealdb:
-        condition: service_healthy
+      - surrealdb
     environment:
       - SURREALDB_URL=http://surrealdb:8000
       - SURREALDB_NS=code_ingest
@@ -43,13 +59,14 @@ services:
       
       # Embedding service (DeepInfra)
       - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B-batch}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B}
       
       # GitHub token for cloning
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       
-      # Optional: Priority filter for ingestion
-      - PRIORITY=${PRIORITY:-high}
+      # Optional: Priority filter (high=only high, medium=medium+high, low/ALL=all).
+      # Default medium so repos without explicit priority in config get cloned.
+      - PRIORITY=${PRIORITY:-low}
     volumes:
       - ./repos:/app/repos  # Mount repos directory
       - ./config:/app/config  # Mount config
@@ -65,8 +82,7 @@ services:
       dockerfile: Dockerfile.mcp
     container_name: code-ingest-mcp
     depends_on:
-      surrealdb:
-        condition: service_healthy
+      - surrealdb
     ports:
       - "8001:8001"  # MCP server port
     environment:
@@ -78,7 +94,7 @@ services:
       
       # Embedding service (DeepInfra)
       - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B-batch}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B}
       
       # Health endpoint configuration
       - DOCKER_ENV=true

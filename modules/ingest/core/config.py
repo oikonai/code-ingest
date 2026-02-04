@@ -206,12 +206,12 @@ class IngestionConfig:
     )
 
     # Embedding model configuration
-    # Default: Qwen/Qwen3-Embedding-8B-batch (batch-optimized)
+    # Default: Qwen/Qwen3-Embedding-8B (standard endpoint; use -batch for batch-optimized)
     # Override via EMBEDDING_MODEL environment variable
     embedding_model: str = field(
         default_factory=lambda: os.getenv(
             "EMBEDDING_MODEL",
-            "Qwen/Qwen3-Embedding-8B-batch"
+            "Qwen/Qwen3-Embedding-8B"
         )
     )
 

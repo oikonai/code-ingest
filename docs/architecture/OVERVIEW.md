@@ -92,7 +92,7 @@ AST-based parsing for extracting meaningful code chunks.
 Generates semantic embeddings for code chunks using DeepInfra's OpenAI-compatible API.
 
 **Backend:**
-- **DeepInfra API** - Qwen3-Embedding-8B-batch (4096D) via OpenAI-compatible endpoint
+- **DeepInfra API** - Qwen3-Embedding-8B (4096D) via OpenAI-compatible endpoint
 
 **Features:**
 - Batch embedding generation
@@ -170,7 +170,7 @@ User Query String
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | Parsing | **tree-sitter** | Fast, robust AST parsing for all languages |
-| Embeddings | **Qwen3-Embedding-8B-batch** | State-of-the-art code embeddings (4096D) |
+| Embeddings | **Qwen3-Embedding-8B** | State-of-the-art code embeddings (4096D) |
 | Vector Database | **Qdrant Cloud** | Scalable vector storage and similarity search |
 | Embedding Backend | **DeepInfra API** | OpenAI-compatible API for embedding generation |
 | Language Support | **Rust, TypeScript, Solidity, Markdown, YAML, Terraform** | Comprehensive language coverage |
@@ -187,7 +187,7 @@ User Query String
 2. **Embedding Service**
    - **DeepInfra API** (`DEEPINFRA_API_KEY`)
      - Provider: DeepInfra
-     - Model: Qwen/Qwen3-Embedding-8B-batch (4096D)
+     - Model: Qwen/Qwen3-Embedding-8B (4096D)
      - OpenAI-compatible API endpoint
      - Minimal cold starts, instant availability
      - Rate limit: 4 concurrent requests

@@ -82,10 +82,11 @@ Collection names are defined in `config/collections.yaml` (shared with the inges
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `QDRANT_URL` | Yes | - | Qdrant instance URL |
-| `QDRANT_API_KEY` | Yes | - | Qdrant API key |
+| `SURREALDB_URL` | Yes | - | SurrealDB URL (e.g. `http://localhost:8000` or `http://surrealdb:8000` in Docker) |
+| `SURREALDB_NS` | No | `code_ingest` | SurrealDB namespace |
+| `SURREALDB_DB` | No | `vectors` | SurrealDB database |
 | `DEEPINFRA_API_KEY` | Yes | - | DeepInfra API key (for embeddings) |
-| `EMBEDDING_MODEL` | No | `Qwen/Qwen3-Embedding-8B-batch` | Embedding model |
+| `EMBEDDING_MODEL` | No | `Qwen/Qwen3-Embedding-8B` | Embedding model |
 | `EMBEDDING_ENDPOINT` | No | `https://api.deepinfra.com/v1/openai` | DeepInfra API base URL (optional override) |
 | `COLLECTIONS_CONFIG` | No | `config/collections.yaml` | Path to collections config |
 
@@ -119,9 +120,47 @@ default_collection: code_rust  # suffix
 
 ## Usage with Cursor IDE
 
-### Add to Cursor Settings
+### Option A: Docker Compose (recommended — use the running MCP container)
 
-Add to your Cursor MCP settings (`.cursor/settings.json` or global settings):
+Run the stack with `docker compose up`; the MCP server listens over HTTP on port 8001. Cursor connects to it by URL (no separate process).
+
+1. **Start the stack:**
+   ```bash
+   docker compose up -d surrealdb mcp
+   ```
+
+2. **Use the project MCP config**  
+   This repo’s `.cursor/mcp.json` points Cursor at the running server:
+   ```json
+   { "mcpServers": { "code-ingest-mcp": { "url": "http://localhost:8001/mcp" } } }
+   ```
+   Open the **code-ingest** folder as your Cursor workspace so it uses this config.
+
+3. **Enable the server in Cursor**  
+   **Cursor Settings** → **Features** → **MCP** → ensure **code-ingest-mcp** is enabled.
+
+4. **Reload Cursor** (or restart) so it connects to the server.
+
+The MCP service serves both the protocol at `http://localhost:8001/mcp` and a health check at `http://localhost:8001/health`.
+
+### Option A2: Docker with stdio (isolated run per Cursor session)
+
+If you prefer Cursor to start its own MCP container via a command instead of a URL, use this in `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "code-ingest-mcp": {
+      "command": "docker",
+      "args": ["compose", "run", "--rm", "-T", "mcp", "python", "server.py"]
+    }
+  }
+}
+```
+Open the **code-ingest** folder as the workspace so the command runs in the project root. SurrealDB must be running (`docker compose up -d surrealdb`).
+
+### Option B: Local Python (SurrealDB on localhost)
+
+If SurrealDB is reachable at `http://localhost:8000` and you have dependencies in `mcp/` installed:
 
 ```json
 {
@@ -130,8 +169,9 @@ Add to your Cursor MCP settings (`.cursor/settings.json` or global settings):
       "command": "python",
       "args": ["/absolute/path/to/code-ingest/mcp/server.py"],
       "env": {
-        "QDRANT_URL": "https://your-instance.qdrant.io",
-        "QDRANT_API_KEY": "your_api_key",
+        "SURREALDB_URL": "http://localhost:8000",
+        "SURREALDB_NS": "code_ingest",
+        "SURREALDB_DB": "vectors",
         "DEEPINFRA_API_KEY": "your_deepinfra_api_key"
       }
     }
@@ -139,24 +179,7 @@ Add to your Cursor MCP settings (`.cursor/settings.json` or global settings):
 }
 ```
 
-Or use a dotenv file:
-
-```json
-{
-  "mcpServers": {
-    "code-ingest-mcp": {
-      "command": "python",
-      "args": ["/absolute/path/to/code-ingest/mcp/server.py"]
-    }
-  }
-}
-```
-
-(Make sure `.env` is in the `mcp/` directory)
-
-### Restart Cursor
-
-After adding the MCP server, restart Cursor for it to load the new server.
+Or point the process at a `.env` file in `mcp/` (with the same variables set) and omit `env`.
 
 ## Example Queries
 

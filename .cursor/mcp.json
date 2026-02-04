@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "code-ingest-mcp": {
+      "url": "http://localhost:8001/mcp"
+    }
+  }
+}

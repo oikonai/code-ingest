@@ -35,7 +35,7 @@ class EmbeddingService:
     def __init__(
         self,
         base_url: str = "https://api.deepinfra.com/v1/openai",
-        model: str = "Qwen/Qwen3-Embedding-8B-batch",
+        model: str = "Qwen/Qwen3-Embedding-8B",
         rate_limit: int = 4,
         embedding_size: int = 4096,
         timeout: int = 60,
@@ -45,7 +45,7 @@ class EmbeddingService:
 
         Args:
             base_url: DeepInfra API endpoint (default: https://api.deepinfra.com/v1/openai)
-            model: Embedding model name (default: Qwen/Qwen3-Embedding-8B-batch)
+            model: Embedding model name (default: Qwen/Qwen3-Embedding-8B)
             rate_limit: Maximum concurrent requests
             embedding_size: Expected embedding dimension (4096 for Qwen3)
             timeout: Request timeout in seconds
