@@ -15,10 +15,7 @@ from .config import (
 from .vector_backend import (
     create_vector_backend,
     VectorBackend,
-    VectorPoint,
-    get_backend_type,
-    is_surrealdb_backend,
-    is_qdrant_backend
+    VectorPoint
 )
 from .checkpoint_manager import CheckpointManager
 from .embedding_service import EmbeddingService
@@ -36,9 +33,6 @@ __all__ = [
     'create_vector_backend',
     'VectorBackend',
     'VectorPoint',
-    'get_backend_type',
-    'is_surrealdb_backend',
-    'is_qdrant_backend',
     'CheckpointManager',
     'EmbeddingService',
     'StorageManager',

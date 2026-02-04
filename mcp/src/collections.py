@@ -121,9 +121,9 @@ def get_all_collection_names() -> List[str]:
 
 def add_discovered_collection(collection_name: str) -> None:
     """
-    Add a collection discovered from Qdrant to the schema.
+    Add a collection discovered from vector database to the schema.
     
-    This is used when MCP finds collections in Qdrant that aren't in the config.
+    This is used when MCP finds collections in the vector database that aren't in the config.
     
     Args:
         collection_name: Name of the discovered collection

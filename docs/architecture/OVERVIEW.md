@@ -1,6 +1,6 @@
 # Code Ingestion System Architecture Overview
 
-> **Last Updated:** 2026-01-30
+> **Last Updated:** 2026-02-04
 > **Version:** 3.0.0-ingestion-only
 > **Maintainer:** Auto-synced with codebase changes
 
@@ -44,11 +44,11 @@ The Code Ingestion System is a production-ready pipeline for transforming GitHub
 ┌───────▼──────────┐            ┌─────────▼────────┐
 │ Embedding Service│            │ Qdrant Vector DB │
 │                  │            │                  │
-│ Cloudflare AI    │────────────│  rust            │
-│ Gateway +        │            │  typescript      │
-│ DeepInfra        │            │  solidity        │
-│                  │            │  documentation   │
-│ OR Modal TEI     │            └──────────────────┘
+│ DeepInfra API    │────────────│  rust            │
+│ (OpenAI-compat)  │            │  typescript      │
+│                  │            │  solidity        │
+│ Qwen3-Embedding  │            │  documentation   │
+│ -8B-batch        │            └──────────────────┘
 └──────────────────┘
 ```
 
@@ -89,17 +89,16 @@ AST-based parsing for extracting meaningful code chunks.
 
 ### 3. **Embedding Service** (`modules/ingest/core/embedding_service.py`)
 
-Generates semantic embeddings for code chunks using state-of-the-art models.
+Generates semantic embeddings for code chunks using DeepInfra's OpenAI-compatible API.
 
-**Supported Backends:**
-- **Cloudflare AI Gateway + DeepInfra** - Qwen3-Embedding-8B (4096D) via API Gateway
-- **Modal TEI** - Self-hosted TEI on Modal with L4 GPU
+**Backend:**
+- **DeepInfra API** - Qwen3-Embedding-8B-batch (4096D) via OpenAI-compatible endpoint
 
 **Features:**
 - Batch embedding generation
 - Automatic retry on transient failures
-- Warmup for cold start reduction
-- Rate limiting and concurrency control
+- Rate limiting and concurrency control (4 concurrent requests)
+- Embedding validation (dimension, NaN, None checks)
 
 ### 4. **Vector Storage** (`modules/ingest/services/vector_client.py`)
 
@@ -167,10 +166,9 @@ User Query String
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | Parsing | **tree-sitter** | Fast, robust AST parsing for all languages |
-| Embeddings | **Qwen3-Embedding-8B** | State-of-the-art code embeddings (4096D) |
+| Embeddings | **Qwen3-Embedding-8B-batch** | State-of-the-art code embeddings (4096D) |
 | Vector Database | **Qdrant Cloud** | Scalable vector storage and similarity search |
-| Embedding Backend | **Cloudflare AI Gateway + DeepInfra** | API-based embedding generation with caching |
-| Alternative Backend | **Modal TEI** | Self-hosted GPU embeddings (L4, Flash Attention 2) |
+| Embedding Backend | **DeepInfra API** | OpenAI-compatible API for embedding generation |
 | Language Support | **Rust, TypeScript, Solidity, Markdown, YAML, Terraform** | Comprehensive language coverage |
 
 ## External Dependencies
@@ -182,18 +180,16 @@ User Query String
    - 4096-dimensional vectors (cosine similarity)
    - Cloud or self-hosted deployment
 
-2. **Embedding Service** (Choose one)
-   - **Cloudflare AI Gateway** (`CLOUDFLARE_AI_GATEWAY_TOKEN`, `DEEPINFRA_API_KEY`)
+2. **Embedding Service**
+   - **DeepInfra API** (`DEEPINFRA_API_KEY`)
      - Provider: DeepInfra
-     - Model: Qwen/Qwen3-Embedding-8B (4096D)
-     - No cold starts, instant availability
-   - **Modal TEI** (`MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`)
-     - Self-hosted on Modal L4 GPU
-     - Cold start: ~5-10s on first request
-     - Better control and potentially lower costs at scale
+     - Model: Qwen/Qwen3-Embedding-8B-batch (4096D)
+     - OpenAI-compatible API endpoint
+     - Minimal cold starts, instant availability
+     - Rate limit: 4 concurrent requests
 
 3. **GitHub** (Optional, for private repos)
-   - Personal Access Token (`GITHUB_TOKEN` or `I2P_REPO_PAT`)
+   - Personal Access Token (`GITHUB_TOKEN`)
    - Required for cloning private repositories
 
 ## Critical Architectural Decisions
@@ -227,7 +223,7 @@ User Query String
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Embedding Generation | ~45/sec | Per Modal container (L4 GPU) |
+| Embedding Generation | Varies | Depends on DeepInfra API rate limits and batch size |
 | Ingestion Throughput | Varies | Depends on repo size, language mix |
 | Vector Collections | 50K+ chunks | Across rust/typescript/solidity/documentation |
 | Search Latency | <200ms | Per query, excluding embedding generation |
@@ -240,12 +236,12 @@ User Query String
 ### Current Limits
 - **Concurrent ingestion**: Sequential (one repo at a time)
 - **Vector storage**: Unlimited (Qdrant Cloud scales automatically)
-- **Embedding generation**: 4 concurrent containers × 45/sec = 180 embeddings/sec
+- **Embedding generation**: 4 concurrent requests (rate-limited via semaphore)
 - **API rate limits**: Managed by retry logic and backoff
 
 ### Scaling Strategies
 1. **Horizontal**: Multiple ingestion workers (requires coordination)
-2. **Vertical**: Increase Modal container count (adjust `concurrency_limit`)
+2. **Vertical**: Increase DeepInfra API rate limit (adjust `rate_limit` parameter)
 3. **Caching**: Deduplicate chunks before embedding generation
 4. **Batch size**: Tune batch size for optimal throughput/memory balance
 
@@ -254,7 +250,6 @@ User Query String
 ### Health Checks
 - `make health` - Pipeline + vector search connectivity
 - `make vector-status` - Collection stats (points, indexed vectors)
-- `make modal-health` - TEI service status (if using Modal)
 
 ### Statistics
 - Per-repository ingestion metrics
@@ -273,7 +268,7 @@ User Query String
 ### Secrets Management
 - All API keys via environment variables (`.env`)
 - No secrets in codebase or version control
-- Modal secrets for HuggingFace model access
+- DeepInfra API key for embedding generation
 
 ### Data Privacy
 - Code chunks stored in Qdrant (consider data location)
@@ -282,7 +277,7 @@ User Query String
 
 ### Access Control
 - Qdrant API key authentication
-- Modal token-based authentication
+- DeepInfra API key authentication
 - GitHub PAT for repository access
 
 ## Related Documentation

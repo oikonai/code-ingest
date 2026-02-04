@@ -4,7 +4,7 @@ Validation script for code-ingest setup.
 
 Tests:
 - Vector backend abstraction
-- Qdrant and SurrealDB client initialization
+- SurrealDB client initialization
 - Environment configuration
 - Module imports
 """
@@ -24,21 +24,11 @@ def test_imports():
         from modules.ingest.core.vector_backend import (
             create_vector_backend,
             VectorBackend,
-            VectorPoint,
-            get_backend_type,
-            is_surrealdb_backend,
-            is_qdrant_backend
+            VectorPoint
         )
         print("  ✅ Vector backend abstraction imports")
     except ImportError as e:
         print(f"  ❌ Vector backend import failed: {e}")
-        return False
-    
-    try:
-        from modules.ingest.services.vector_client import QdrantVectorClient
-        print("  ✅ Qdrant client imports")
-    except ImportError as e:
-        print(f"  ❌ Qdrant client import failed: {e}")
         return False
     
     try:
@@ -58,53 +48,29 @@ def test_imports():
     return True
 
 
-def test_backend_detection():
-    """Test backend type detection."""
-    print("\n🔍 Testing backend detection...")
+def test_surrealdb_env():
+    """Test SurrealDB environment configuration."""
+    print("\n🔍 Testing SurrealDB environment...")
     
-    from modules.ingest.core.vector_backend import get_backend_type
+    surrealdb_url = os.getenv('SURREALDB_URL')
     
-    # Save current env
-    old_backend = os.getenv('VECTOR_BACKEND')
-    
-    # Test Qdrant
-    os.environ['VECTOR_BACKEND'] = 'qdrant'
-    backend = get_backend_type()
-    if backend == 'qdrant':
-        print("  ✅ Qdrant backend detection")
+    if surrealdb_url:
+        print(f"  ✅ SURREALDB_URL configured: {surrealdb_url}")
+        return True
     else:
-        print(f"  ❌ Qdrant backend detection failed: got {backend}")
+        print("  ⚠️  SURREALDB_URL not set (required for vector operations)")
         return False
-    
-    # Test SurrealDB
-    os.environ['VECTOR_BACKEND'] = 'surrealdb'
-    backend = get_backend_type()
-    if backend == 'surrealdb':
-        print("  ✅ SurrealDB backend detection")
-    else:
-        print(f"  ❌ SurrealDB backend detection failed: got {backend}")
-        return False
-    
-    # Restore env
-    if old_backend:
-        os.environ['VECTOR_BACKEND'] = old_backend
-    elif 'VECTOR_BACKEND' in os.environ:
-        del os.environ['VECTOR_BACKEND']
-    
-    return True
 
 
 def test_factory():
     """Test vector backend factory."""
-    print("\n🔍 Testing vector backend factory...")
+    print("\n🔍 Testing SurrealDB backend factory...")
     
     from modules.ingest.core.vector_backend import create_vector_backend
     
-    # Test factory with explicit backend type (no env needed)
     try:
-        # Note: This will fail if Qdrant env vars are not set, but that's expected
-        # We're just testing that the factory can be called
-        print("  ✅ Vector backend factory callable")
+        # Test that factory can be called (will fail without credentials, which is expected)
+        print("  ✅ SurrealDB backend factory callable")
         return True
     except Exception as e:
         print(f"  ⚠️  Factory test skipped (no credentials): {e}")
@@ -117,7 +83,6 @@ def test_files_exist():
     
     required_files = [
         "modules/ingest/core/vector_backend.py",
-        "modules/ingest/services/vector_client.py",
         "modules/ingest/services/surrealdb_vector_client.py",
         "docker-compose.yml",
         "Dockerfile.ingest",
@@ -153,7 +118,7 @@ def main():
     
     # Run tests
     results.append(("Imports", test_imports()))
-    results.append(("Backend Detection", test_backend_detection()))
+    results.append(("SurrealDB Environment", test_surrealdb_env()))
     results.append(("Factory", test_factory()))
     results.append(("File Structure", test_files_exist()))
     

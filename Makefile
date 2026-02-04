@@ -86,8 +86,8 @@ setup: venv install check-env
 check-env:
 	@echo "$(BLUE)🔍 Checking environment configuration...$(RESET)"
 	@python -c "import os; from dotenv import load_dotenv; load_dotenv(); \
-	required = ['QDRANT_URL', 'QDRANT_API_KEY']; \
-	optional = ['CLOUDFLARE_AI_GATEWAY_TOKEN', 'DEEPINFRA_API_KEY']; \
+	required = ['QDRANT_URL', 'QDRANT_API_KEY', 'DEEPINFRA_API_KEY']; \
+	optional = ['EMBEDDING_MODEL', 'GITHUB_TOKEN']; \
 	missing = [k for k in required if not os.getenv(k)]; \
 	missing_opt = [k for k in optional if not os.getenv(k)]; \
 	print('✅ All required environment variables set' if not missing else f'❌ Missing required: {missing}'); \
@@ -192,7 +192,7 @@ info:
 	@echo "Features:"
 	@echo "  📂 GitHub repository cloning"
 	@echo "  🔍 Multi-language parsing (Rust, TypeScript, Solidity, Documentation)"
-	@echo "  🧠 Semantic embeddings via Cloudflare AI Gateway"
+	@echo "  🧠 Semantic embeddings via DeepInfra"
 	@echo "  💾 Qdrant vector database storage"
 	@echo "  🔎 Cross-language semantic search"
 	@echo "  📊 Comprehensive statistics and monitoring"

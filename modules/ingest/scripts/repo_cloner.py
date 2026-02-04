@@ -55,7 +55,7 @@ class RepositoryCloner:
             pat_token: GitHub Personal Access Token (optional, uses env var if not provided)
         """
         self.base_dir = Path(base_dir)
-        self.pat_token = pat_token or os.getenv('GITHUB_TOKEN') or os.getenv('I2P_REPO_PAT')
+        self.pat_token = pat_token or os.getenv('GITHUB_TOKEN')
         self.base_dir.mkdir(parents=True, exist_ok=True)
     
     def clone_all(

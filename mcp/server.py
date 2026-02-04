@@ -2,7 +2,7 @@
 """
 Code Ingestion MCP Server
 
-FastMCP server providing semantic code search capabilities through Qdrant
+FastMCP server providing semantic code search capabilities through SurrealDB
 vector database integration. Enables semantic search over ingested code
 repositories for Cursor IDE and other MCP-compatible AI coding assistants.
 
@@ -58,7 +58,7 @@ load_dotenv()
 SERVER_NAME = "code-ingest-mcp"
 SERVER_VERSION = "2.0.0"
 SERVER_DESCRIPTION = (
-    "Semantic code search server for ingested repositories via Qdrant. "
+    "Semantic code search server for ingested repositories via SurrealDB. "
     "Search across code collections using natural language queries."
 )
 
@@ -80,7 +80,7 @@ _query_cache: QueryCache = QueryCache(ttl_minutes=30, max_size=1000)
 # Helper Functions
 # ============================================================================
 
-async def warmup_embedding_endpoint(endpoint: str, cloudflare_token: str, deepinfra_key: str, model: str = 'custom-deepinfra/Qwen/Qwen2.5-7B-Instruct-Embedding', timeout: float = 30.0) -> bool:
+async def warmup_embedding_endpoint(base_url: str, deepinfra_key: str, model: str = 'Qwen/Qwen3-Embedding-8B-batch', timeout: float = 30.0) -> bool:
     """
     Pre-warm the embedding endpoint to avoid cold start delays.
 
@@ -88,60 +88,46 @@ async def warmup_embedding_endpoint(endpoint: str, cloudflare_token: str, deepin
     actual requests are made.
 
     Args:
-        endpoint: Embedding endpoint base URL (Cloudflare AI gateway, e.g., https://gateway.ai.cloudflare.com/v1/{account_id}/aig/compat)
-        api_token: Cloudflare API token for authentication
+        base_url: DeepInfra API base URL
+        deepinfra_key: DeepInfra API key
+        model: Embedding model name
         timeout: Maximum time to wait for warmup (default: 30s)
 
     Returns:
         True if warmup successful, False otherwise
     """
     logger.info("🔥 Warming up embedding endpoint...")
-    logger.info(f"   Endpoint: {endpoint[:60]}...")
+    logger.info(f"   Base URL: {base_url[:60]}...")
 
     try:
-        # Cloudflare AI Gateway requires both headers:
-        # - Authorization: Provider API key (Deep Infra)
-        # - cf-aig-authorization: Cloudflare Gateway token
-        headers = {
-            "Authorization": f"Bearer {deepinfra_key}",
-            "cf-aig-authorization": f"Bearer {cloudflare_token}",
-            "Content-Type": "application/json"
-        }
-        # Construct embeddings endpoint with custom provider path
-        # Format: {base_url}/custom-deepinfra/embeddings
-        # The base URL should be: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
-        # So we append /custom-deepinfra/embeddings
-        embeddings_url = f"{endpoint.rstrip('/')}/custom-deepinfra/embeddings"
+        from openai import OpenAI
+        
+        client = OpenAI(
+            api_key=deepinfra_key,
+            base_url=base_url,
+            timeout=timeout
+        )
+        
+        response = client.embeddings.create(
+            model=model,
+            input=["warmup query"],
+            encoding_format="float"
+        )
 
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(
-                embeddings_url,
-                json={
-                    "model": model,
-                    "input": ["warmup query"]
-                },
-                headers=headers
-            )
-            response.raise_for_status()
-            result = response.json()
-
-            # OpenAI-compatible API returns 'data' array with embeddings
-            if 'data' in result and len(result['data']) > 0:
-                embedding = result['data'][0].get('embedding', [])
-                if len(embedding) > 0:
-                    logger.info("✅ Embedding endpoint warmed up successfully")
-                    return True
-            logger.warning("⚠️  Embedding endpoint responded but format unexpected")
-            return False
+        # Check response
+        if response.data and len(response.data) > 0:
+            embedding = response.data[0].embedding
+            if len(embedding) > 0:
+                logger.info("✅ Embedding endpoint warmed up successfully")
+                return True
+        logger.warning("⚠️  Embedding endpoint responded but format unexpected")
+        return False
 
     except asyncio.TimeoutError:
         logger.warning(f"⚠️  Embedding endpoint warmup timed out after {timeout}s - endpoint may be cold")
         return False
-    except httpx.HTTPError as e:
-        logger.error(f"❌ Embedding endpoint warmup failed: {e}")
-        return False
     except Exception as e:
-        logger.error(f"❌ Unexpected error during embedding endpoint warmup: {e}")
+        logger.error(f"❌ Embedding endpoint warmup failed: {e}")
         return False
 
 
@@ -156,12 +142,12 @@ async def lifespan(server: FastMCP):
 
     Handles initialization and cleanup of resources:
     - Validates environment configuration
-    - Initializes Qdrant client
+    - Initializes SurrealDB vector backend
     - Registers tools, prompts, and resources
     - Pre-warms embedding endpoint
     - Cleans up connections on shutdown
     """
-    global _qdrant_client, _embedding_endpoint, _cloudflare_api_token, _config
+    global _vector_client, _embedding_endpoint, _cloudflare_api_token, _config
 
     logger.info("=" * 80)
     logger.info(f"🚀 Starting {SERVER_NAME} v{SERVER_VERSION}")
@@ -176,8 +162,6 @@ async def lifespan(server: FastMCP):
 
         # Store in global variables for modules to access
         _vector_client = vector_client
-        _embedding_endpoint = config['embedding_endpoint']
-        _cloudflare_api_token = config['cloudflare_api_token']
         _config = config
 
         # Register all tools, prompts, and resources from modules
@@ -187,7 +171,7 @@ async def lifespan(server: FastMCP):
 
         # Pre-warm embedding endpoint (runs in background)
         embedding_warmup_task = asyncio.create_task(
-            warmup_embedding_endpoint(config['embedding_endpoint'], config['cloudflare_api_token'], config['deepinfra_api_key'], config['embedding_model'])
+            warmup_embedding_endpoint(config['embedding_base_url'], config['deepinfra_api_key'], config['embedding_model'])
         )
 
         logger.info("=" * 80)
@@ -259,7 +243,7 @@ def register_all_features():
     2. Calls registration functions to add features to the MCP server
     3. Sets up cross-module dependencies
     """
-    global _vector_client, _embedding_endpoint, _cloudflare_api_token, _query_cache
+    global _vector_client, _query_cache, _config
     global _repo_cache, _repo_cache_timestamp, _repo_cache_ttl
 
     # Import minimal registration functions
@@ -279,10 +263,9 @@ def register_all_features():
     # Set up global state in search tools
     set_search_globals(
         _vector_client,
-        _embedding_endpoint,
-        _cloudflare_api_token,
         _config.get('deepinfra_api_key'),
-        _config.get('embedding_model', 'custom-deepinfra/Qwen/Qwen2.5-7B-Instruct-Embedding'),
+        _config.get('embedding_base_url', 'https://api.deepinfra.com/v1/openai'),
+        _config.get('embedding_model', 'Qwen/Qwen3-Embedding-8B-batch'),
         _query_cache
     )
 
@@ -320,60 +303,36 @@ def validate_environment() -> Dict[str, Any]:
     logger.info("🔍 Validating environment configuration...")
 
     # Required environment variables
-    qdrant_url = os.getenv('QDRANT_URL')
-    qdrant_api_key = os.getenv('QDRANT_API_KEY')
-    embedding_endpoint = os.getenv('EMBEDDING_ENDPOINT')
-    cloudflare_api_token = os.getenv('CLOUDFLARE_API_TOKEN')
-    deepinfra_api_key = os.getenv('DEEPINFRA_API_KEY')  # Provider API key for Deep Infra
-    embedding_model = os.getenv('EMBEDDING_MODEL', 'custom-deepinfra/Qwen/Qwen2.5-7B-Instruct-Embedding')
+    surrealdb_url = os.getenv('SURREALDB_URL')
+    deepinfra_api_key = os.getenv('DEEPINFRA_API_KEY')
+    
+    # Optional: embedding endpoint override (defaults to DeepInfra)
+    embedding_base_url = os.getenv('EMBEDDING_ENDPOINT', 'https://api.deepinfra.com/v1/openai')
+    embedding_model = os.getenv('EMBEDDING_MODEL', 'Qwen/Qwen3-Embedding-8B-batch')
 
-    if not qdrant_url:
+    if not surrealdb_url:
         raise ValueError(
-            "QDRANT_URL environment variable is required. "
-            "Please set it in .env file or environment."
-        )
-
-    if not qdrant_api_key:
-        raise ValueError(
-            "QDRANT_API_KEY environment variable is required. "
-            "Please set it in .env file or environment."
-        )
-
-    # Default embedding endpoint if not provided
-    # Note: Should be full base URL like https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
-    # The /custom-deepinfra/embeddings path will be appended automatically
-    if not embedding_endpoint:
-        raise ValueError(
-            "EMBEDDING_ENDPOINT environment variable is required. "
-            "Format: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}"
-        )
-
-    if not cloudflare_api_token:
-        raise ValueError(
-            "CLOUDFLARE_API_TOKEN environment variable is required for embedding generation. "
+            "SURREALDB_URL environment variable is required. "
             "Please set it in .env file or environment."
         )
 
     if not deepinfra_api_key:
         raise ValueError(
             "DEEPINFRA_API_KEY environment variable is required for embedding generation. "
-            "This is the provider API key for Deep Infra. Please set it in .env file or environment."
+            "Get your API key from: https://deepinfra.com/dash/api_keys"
         )
 
     config = {
-        'qdrant_url': qdrant_url,
-        'qdrant_api_key': qdrant_api_key,
-        'embedding_endpoint': embedding_endpoint,
-        'cloudflare_api_token': cloudflare_api_token,
+        'surrealdb_url': surrealdb_url,
         'deepinfra_api_key': deepinfra_api_key,
+        'embedding_base_url': embedding_base_url,
         'embedding_model': embedding_model,
     }
 
     logger.info(f"✅ Environment validation successful")
-    logger.info(f"   Qdrant URL: {qdrant_url[:60]}...")
-    logger.info(f"   Embedding Endpoint: {embedding_endpoint[:60]}...")
-    logger.info(f"   Cloudflare API Token: {'*' * 20}...{cloudflare_api_token[-4:] if len(cloudflare_api_token) > 4 else '****'}")
-    logger.info(f"   Deep Infra API Key: {'*' * 20}...{deepinfra_api_key[-4:] if len(deepinfra_api_key) > 4 else '****'}")
+    logger.info(f"   SurrealDB URL: {surrealdb_url[:60]}...")
+    logger.info(f"   Embedding Base URL: {embedding_base_url}")
+    logger.info(f"   DeepInfra API Key: {'*' * 20}...{deepinfra_api_key[-4:] if len(deepinfra_api_key) > 4 else '****'}")
     logger.info(f"   Embedding Model: {embedding_model}")
 
     return config
@@ -381,7 +340,7 @@ def validate_environment() -> Dict[str, Any]:
 
 def initialize_vector_backend(config: Dict[str, Any]) -> VectorBackend:
     """
-    Initialize vector backend with configuration and validate connection.
+    Initialize SurrealDB vector backend with configuration and validate connection.
 
     Args:
         config: Configuration dictionary from validate_environment()
@@ -394,8 +353,7 @@ def initialize_vector_backend(config: Dict[str, Any]) -> VectorBackend:
         Exception: For other unexpected errors
     """
     try:
-        backend_type = os.getenv('VECTOR_BACKEND', 'qdrant').lower()
-        logger.info(f"🔗 Connecting to vector backend: {backend_type}...")
+        logger.info("🔗 Connecting to SurrealDB vector backend...")
 
         client = create_vector_backend()
 
@@ -409,7 +367,7 @@ def initialize_vector_backend(config: Dict[str, Any]) -> VectorBackend:
                 "Vector search will not work until ingestion is complete."
             )
 
-        logger.info(f"✅ Connected to {backend_type} - Found {collection_count} collections")
+        logger.info(f"✅ Connected to SurrealDB - Found {collection_count} collections")
         for collection_name in collections:
             logger.info(f"   📦 {collection_name}")
 
@@ -422,19 +380,13 @@ def initialize_vector_backend(config: Dict[str, Any]) -> VectorBackend:
         raise
 
     except Exception as e:
-        backend_type = os.getenv('VECTOR_BACKEND', 'qdrant').lower()
-        logger.error(f"❌ Failed to connect to {backend_type}: {e}")
+        logger.error(f"❌ Failed to connect to SurrealDB: {e}")
         logger.error("💡 Please check:")
-        if backend_type == 'qdrant':
-            logger.error("   - QDRANT_URL is accessible from your network")
-            logger.error("   - QDRANT_API_KEY is valid and has proper permissions")
-            logger.error("   - Qdrant service is running and healthy")
-        elif backend_type == 'surrealdb':
-            logger.error("   - SURREALDB_URL is accessible (default: http://localhost:8000)")
-            logger.error("   - SurrealDB service is running and healthy")
-            logger.error("   - SURREALDB_NS, SURREALDB_DB are set correctly")
+        logger.error("   - SURREALDB_URL is accessible (e.g., http://localhost:8000 or remote URL)")
+        logger.error("   - SurrealDB service is running and healthy")
+        logger.error("   - SURREALDB_NS, SURREALDB_DB are set correctly")
         logger.exception("Stack trace:")
-        raise RuntimeError(f"{backend_type} connection failed: {e}") from e
+        raise RuntimeError(f"SurrealDB connection failed: {e}") from e
 
 
 # ============================================================================

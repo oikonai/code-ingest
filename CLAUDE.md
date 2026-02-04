@@ -200,7 +200,7 @@ class IngestionConfig:
     repos_base_dir: str = "./repos"  # Loaded from repositories.yaml
     qdrant_url: str = field(default_factory=lambda: os.getenv("QDRANT_URL"))
     qdrant_api_key: str = field(default_factory=lambda: os.getenv("QDRANT_API_KEY"))
-    embedding_backend: str = "cloudflare"  # or "modal"
+    deepinfra_api_key: str = field(default_factory=lambda: os.getenv("DEEPINFRA_API_KEY"))
     batch_size: int = 50
     score_threshold: float = 0.3
     
@@ -208,6 +208,8 @@ class IngestionConfig:
         """Validate required configuration."""
         if not self.qdrant_url or not self.qdrant_api_key:
             raise ValueError("Qdrant configuration required")
+        if not self.deepinfra_api_key:
+            raise ValueError("DeepInfra API key required for embeddings")
 ```
 
 **Key principles:**

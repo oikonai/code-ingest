@@ -7,7 +7,7 @@
 
 ## Overview
 
-The `IngestionPipeline` is the main orchestrator for ingesting multi-language codebases (Rust, TypeScript, Solidity, Markdown documentation) into Qdrant vector database. It coordinates service initialization, file processing, checkpoint management, and cross-language search capabilities using Qwen3-Embedding-8B (4096D) embeddings via Cloudflare AI Gateway + DeepInfra.
+The `IngestionPipeline` is the main orchestrator for ingesting multi-language codebases (Rust, TypeScript, Solidity, Markdown documentation) into Qdrant vector database. It coordinates service initialization, file processing, checkpoint management, and cross-language search capabilities using Qwen3-Embedding-8B-batch (4096D) embeddings via DeepInfra API.
 
 ## Architecture
 
@@ -19,7 +19,7 @@ IngestionPipeline (Orchestrator)
     │   └─ RepositoryConfig (repo paths, IDs, languages)
     │
     ├─ Service Initialization
-    │   ├─ EmbeddingService (Modal TEI)
+    │   ├─ EmbeddingService (DeepInfra API)
     │   ├─ QdrantVectorClient (Vector DB)
     │   ├─ StorageManager (Collection management)
     │   └─ CheckpointManager (Resume capability)
@@ -64,7 +64,7 @@ For Each Language:
         ↓
     BatchProcessor
         ├─ Batch chunks (100 per batch)
-        ├─ Generate embeddings (Modal TEI)
+        ├─ Generate embeddings (DeepInfra API)
         └─ Retry failed batches (max 3x)
         ↓
     StorageManager
@@ -123,8 +123,8 @@ class IngestionPipeline:
 ```python
 @dataclass
 class IngestionConfig:
-    # Modal TEI endpoint (optional - Cloudflare AI Gateway recommended)
-    # modal_endpoint: str = "https://your-org--embed.modal.run"
+    # DeepInfra API endpoint (default: https://api.deepinfra.com/v1/openai)
+    deepinfra_base_url: str = "https://api.deepinfra.com/v1/openai"
 
     # Checkpoint configuration
     checkpoint_file: Path = Path("./ingestion_checkpoint.json")
@@ -250,10 +250,10 @@ Pre-warm all services before ingestion to avoid cold start delays.
    - Create collections if they don't exist
    - Configure vector dimensions (4096)
    - Set distance metric (cosine)
-2. **Warmup Modal Embedding Service**:
-   - Send warmup requests to all containers
-   - Wait for containers to be hot (30-60s cold start)
-   - Verify success threshold (≥70% containers)
+2. **Warmup DeepInfra Embedding Service**:
+   - Send test request to DeepInfra API
+   - Verify API connectivity
+   - Minimal latency (serverless)
 
 **Example:**
 ```python
@@ -368,7 +368,7 @@ Search for code across multiple language collections.
 - `Dict[str, List[Dict]]`: Results grouped by language
 
 **Process:**
-1. **Generate Query Embedding** via Modal TEI service
+1. **Generate Query Embedding** via DeepInfra API
 2. **Search Each Language Collection**:
    - Map language to collection name
    - Execute vector search with cosine similarity
@@ -441,7 +441,7 @@ results = pipeline.search_across_languages(
 
 ### Why Lazy Loading?
 
-**Problem:** Initializing Qdrant client requires credentials and network connection. In warmup-only mode, we only need the embedding service.
+**Problem:** Initializing Qdrant client requires credentials and network connection. In warmup-only mode, we only need the DeepInfra API embedding service.
 
 **Solution:** Lazy-load heavy services via properties.
 
@@ -567,7 +567,7 @@ stats = pipeline.ingest_repositories()
 # Initialize without vector client (warmup-only)
 pipeline = IngestionPipeline(skip_vector_init=True)
 
-# Warmup embedding service only
+# Warmup DeepInfra API embedding service only
 if pipeline.warmup_services(skip_vector_setup=True):
     print("✅ Embedding service ready")
 ```
@@ -647,7 +647,7 @@ pipeline = IngestionPipeline()
 if not pipeline.warmup_services():
     logger.error("❌ Service warmup failed")
     # Check:
-    # 1. Modal service is deployed (modal app list)
+    # 1. DeepInfra API key is valid
     # 2. Qdrant credentials are valid
     # 3. Network connectivity
     exit(1)
@@ -674,7 +674,7 @@ if stats.get('errors'):
 # Check error details in stats
 if 'Embedding generation failed' in stats['errors']:
     # Possible causes:
-    # 1. Modal service timeout
+    # 1. DeepInfra API timeout or rate limit
     # 2. Network issues
     # 3. Invalid text encoding
     # 4. Service overload
@@ -684,17 +684,17 @@ if 'Embedding generation failed' in stats['errors']:
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Embedding Generation** | 45 embeddings/sec | Per L4 GPU container (4 total) |
+| **Embedding Generation** | API rate limited | DeepInfra API throughput |
 | **Batch Processing** | 100 chunks/batch | Optimized for throughput |
-| **Cold Start** | 30-60s | Modal container warmup |
-| **Warm Start** | <5s | Containers already hot |
+| **Cold Start** | Minimal | Serverless API |
+| **Warm Start** | <5s | API already available |
 | **File Categorization** | 1000 files/sec | Lightweight file scanning |
 | **Checkpoint Save** | <10ms | JSON write |
 | **Vector Upsert** | 200-500 chunks/sec | Qdrant batch upsert |
 
 **Optimization Tips:**
 - Increase `batch_size` for higher throughput (max 200)
-- Increase `rate_limit` if more Modal containers available
+- Adjust `rate_limit` based on DeepInfra API rate limits
 - Decrease checkpoint frequency to reduce I/O overhead
 
 ## Monitoring
@@ -744,7 +744,7 @@ if 'Embedding generation failed' in stats['errors']:
 # Check vector database status
 make vector-status
 
-# Check Modal service health
+# Check DeepInfra API health
 make warmup-services
 
 # Test search functionality
@@ -759,7 +759,7 @@ print(f'Search working: {len(results) > 0}')
 ## Related Documentation
 
 - [Language Parsers](./PARSERS.md) - AST parsing for Rust, TypeScript, Solidity
-- [Embedding Service](./EMBEDDING.md) - Modal TEI integration
+- [Embedding Service](../../architecture/OVERVIEW.md) - DeepInfra API integration
 - [Vector Client](./VECTOR_CLIENT.md) - Qdrant client
 - [Vector Search Architecture](../../architecture/VECTOR_SEARCH.md) - Search system
 - [Configuration](./CONFIG.md) - Configuration options *(Coming soon)*

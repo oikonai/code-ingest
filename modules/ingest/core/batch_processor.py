@@ -199,7 +199,7 @@ class BatchProcessor:
             # Extract texts from chunks with size validation
             texts = []
             valid_chunks = []
-            max_chars = 131_000  # Cloudflare AI Gateway limit: 131,072 chars
+            max_chars = 131_000  # Batch size limit for embedding API (safe default)
 
             for chunk in batch_chunks:
                 content_len = len(chunk.content)

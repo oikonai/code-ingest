@@ -54,10 +54,10 @@ class IngestionPipeline:
 
         logger.info("🚀 Initializing ingestion pipeline...")
 
-        # Initialize embedding service with Cloudflare AI Gateway
+        # Initialize embedding service with DeepInfra
         self.checkpoint_manager = CheckpointManager(self.config.checkpoint_file)
         self.embedding_service = EmbeddingService(
-            base_url=self.config.cloudflare_base_url,
+            base_url=self.config.deepinfra_base_url,
             model=self.config.embedding_model,
             rate_limit=self.config.rate_limit,
             embedding_size=self.config.embedding_size,
@@ -151,22 +151,22 @@ class IngestionPipeline:
         Pre-warm all services before ingestion.
 
         Args:
-            skip_vector_setup: Skip Qdrant collection setup (for embedding-only warmup)
+            skip_vector_setup: Skip vector collection setup (for embedding-only warmup)
 
         Returns:
             True if warmup successful
         """
         logger.info("🔥 Warming up services...")
 
-        # Setup Qdrant collections (unless skipped)
+        # Setup vector collections (unless skipped)
         if not skip_vector_setup:
             if not self.storage_manager.setup_collections(self.config.collections):
-                logger.error("❌ Failed to setup Qdrant collections")
+                logger.error("❌ Failed to setup vector collections")
                 return False
 
-        # Warmup Modal embedding service
+        # Warmup embedding service
         if not self.embedding_service.warmup_containers(num_containers=self.config.rate_limit):
-            logger.error("❌ Failed to warmup Modal service")
+            logger.error("❌ Failed to warmup embedding service")
             return False
 
         logger.info("✅ All services ready")

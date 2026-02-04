@@ -455,7 +455,7 @@ class FileProcessor:
                 except Exception as e:
                     stats['errors'].append(f"Error processing {file_path}: {e}")
 
-            # Stream this batch to Qdrant
+            # Stream this batch to vector store
             if batch_chunks:
                 logger.info(f"📊 Processing {len(batch_chunks)} Solidity chunks")
                 # Fix: pass collection_name as a list

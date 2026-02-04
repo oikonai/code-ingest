@@ -89,7 +89,7 @@ class StatsReporter:
                 
                 lang = collection_name.split('_')[-1]
                 
-                # Handle both Qdrant and SurrealDB response formats
+                # Extract stats from SurrealDB response format
                 vectors_count = info.get('vectors_count', info.get('points_count', 0))
                 indexed_count = info.get('indexed_vectors_count', vectors_count)
                 status = info.get('status', 'unknown')

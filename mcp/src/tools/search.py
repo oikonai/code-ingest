@@ -1,43 +1,53 @@
 """MCP tools for semantic code search."""
 
 import logging
-import httpx
 from typing import List, Optional, Dict
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError, NotFoundError
 
 from ..collections import DEFAULT_COLLECTION, resolve_collection_name
 
+try:
+    from openai import OpenAI
+except ImportError:
+    raise ImportError("openai package required. Install with: pip install openai")
+
 logger = logging.getLogger(__name__)
 
 # Global state - will be set by server module
 _vector_client = None
-_embedding_endpoint = None
-_cloudflare_api_token = None
 _deepinfra_api_key = None
+_embedding_base_url = None
 _embedding_model = None
 _query_cache = None
+_openai_client = None
 
 
-def set_search_globals(vector_client, embedding_endpoint, cloudflare_api_token, deepinfra_api_key, embedding_model, query_cache):
+def set_search_globals(vector_client, deepinfra_api_key, embedding_base_url, embedding_model, query_cache):
     """
     Set global state references needed by search tools.
 
     Args:
         vector_client: Vector backend client instance
-        embedding_endpoint: Embedding service URL (Cloudflare AI gateway)
-        cloudflare_api_token: Cloudflare API token for authentication
-        deepinfra_api_key: Deep Infra provider API key
+        deepinfra_api_key: DeepInfra API key
+        embedding_base_url: DeepInfra API base URL
         embedding_model: Model name for embeddings
         query_cache: Query cache instance
     """
-    global _vector_client, _embedding_endpoint, _cloudflare_api_token, _deepinfra_api_key, _embedding_model, _query_cache
+    global _vector_client, _deepinfra_api_key, _embedding_base_url, _embedding_model, _query_cache, _openai_client
     _vector_client = vector_client
-    _embedding_endpoint = embedding_endpoint
-    _cloudflare_api_token = cloudflare_api_token
     _deepinfra_api_key = deepinfra_api_key
+    _embedding_base_url = embedding_base_url
     _embedding_model = embedding_model
     _query_cache = query_cache
+    
+    # Initialize OpenAI client for embeddings
+    if deepinfra_api_key and embedding_base_url:
+        _openai_client = OpenAI(
+            api_key=deepinfra_api_key,
+            base_url=embedding_base_url,
+            timeout=30.0
+        )
 
 
 async def _semantic_search_impl(
@@ -67,19 +77,13 @@ async def _semantic_search_impl(
     if collection_name is None:
         collection_name = DEFAULT_COLLECTION
     try:
-        global _vector_client, _embedding_endpoint, _cloudflare_api_token, _query_cache
+        global _vector_client, _openai_client, _query_cache
 
         if not _vector_client:
             raise ToolError("Vector client not initialized")
 
-        if not _embedding_endpoint:
-            raise ToolError("Embedding endpoint not configured")
-
-        if not _cloudflare_api_token:
-            raise ToolError("Cloudflare API token not configured")
-
-        if not _deepinfra_api_key:
-            raise ToolError("Deep Infra API key not configured")
+        if not _openai_client:
+            raise ToolError("Embedding client not initialized")
 
         # Validate parameters
         if not query or not query.strip():
@@ -102,62 +106,24 @@ async def _semantic_search_impl(
             cached_result["from_cache"] = True
             return cached_result
 
-        # Generate embedding via embedding endpoint
+        # Generate embedding via DeepInfra
         try:
-            # Cloudflare AI Gateway requires both headers:
-            # - Authorization: Provider API key (Deep Infra)
-            # - cf-aig-authorization: Cloudflare Gateway token
-            headers = {
-                "Authorization": f"Bearer {_deepinfra_api_key}",
-                "cf-aig-authorization": f"Bearer {_cloudflare_api_token}",
-                "Content-Type": "application/json"
-            }
-            # Construct embeddings endpoint with custom provider path
-            # Format: {base_url}/custom-deepinfra/embeddings
-            # The base URL should be: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
-            # So we append /custom-deepinfra/embeddings
-            embeddings_url = f"{_embedding_endpoint.rstrip('/')}/custom-deepinfra/embeddings"
+            response = _openai_client.embeddings.create(
+                model=_embedding_model,
+                input=[query],
+                encoding_format="float"
+            )
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Keep the full model name with prefix - Cloudflare Gateway needs it to route to the provider
-                request_payload = {
-                    "model": _embedding_model,
-                    "input": [query]
-                }
+            # Extract embedding from response
+            if not response.data or len(response.data) == 0:
+                raise ToolError("Embedding service returned empty response")
 
-                response = await client.post(
-                    embeddings_url,
-                    json=request_payload,
-                    headers=headers
-                )
-                response.raise_for_status()
-                embedding_data = response.json()
+            query_embedding = response.data[0].embedding
 
-                if 'error' in embedding_data:
-                    error_msg = embedding_data.get('error', {})
-                    if isinstance(error_msg, list) and len(error_msg) > 0:
-                        error_detail = error_msg[0]
-                        error_code = error_detail.get('code', '')
-                        error_message = error_detail.get('message', str(error_detail))
-                        if error_code == 2005:  # Failed to get response from provider
-                            raise ToolError(
-                                f"Embedding endpoint error: {error_message}. "
-                                f"This usually means the model '{_embedding_model}' doesn't support embeddings or the model name is incorrect. "
-                                f"Please verify the EMBEDDING_MODEL environment variable matches a valid embedding model in your Cloudflare AI Gateway."
-                            )
-                        raise ToolError(f"Embedding endpoint error (code {error_code}): {error_message}")
-                    raise ToolError(f"Embedding endpoint error: {error_msg}")
+            if not isinstance(query_embedding, list) or len(query_embedding) != 4096:
+                raise ToolError(f"Invalid embedding dimensions: expected 4096, got {len(query_embedding) if isinstance(query_embedding, list) else 'non-list'}")
 
-                # OpenAI-compatible API returns 'data' array with embeddings
-                if 'data' not in embedding_data or not embedding_data['data']:
-                    raise ToolError("Embedding endpoint returned invalid response (missing 'data' field)")
-
-                query_embedding = embedding_data['data'][0].get('embedding', [])
-
-                if not isinstance(query_embedding, list) or len(query_embedding) != 4096:
-                    raise ToolError(f"Invalid embedding dimensions: expected 4096, got {len(query_embedding) if isinstance(query_embedding, list) else 'non-list'}")
-
-        except httpx.HTTPError as e:
+        except Exception as e:
             logger.error(f"Embedding request failed: {e}")
             raise ToolError(f"Failed to generate query embedding: {str(e)}") from e
 

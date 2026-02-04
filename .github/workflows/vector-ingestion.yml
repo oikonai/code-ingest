@@ -50,7 +50,7 @@ jobs:
 
       - name: 🔄 Clone Target Repositories
         env:
-          GITHUB_TOKEN: ${{ secrets.I2P_REPO_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PRIORITY: ${{ github.event.inputs.priority || 'ALL' }}
         run: |
           echo "🔄 Cloning repositories (minimum priority: ${PRIORITY})..."
@@ -64,14 +64,13 @@ jobs:
           QDRANT_URL: ${{ secrets.QDRANT_URL }}
           QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          CLOUDFLARE_AI_GATEWAY_TOKEN: ${{ secrets.CLOUDFLARE_AI_GATEWAY_TOKEN }}
           DEEPINFRA_API_KEY: ${{ secrets.DEEPINFRA_API_KEY }}
         run: |
           echo "🔧 Setting up environment..."
 
           # Verify environment variables
           echo "✅ Checking required environment variables..."
-          python -c "import os; required = ['QDRANT_URL', 'QDRANT_API_KEY', 'OPENROUTER_API_KEY', 'CLOUDFLARE_AI_GATEWAY_TOKEN', 'DEEPINFRA_API_KEY']; missing = [k for k in required if not os.getenv(k)]; print('✅ All required environment variables set' if not missing else f'❌ Missing: {missing}'); exit(1 if missing else 0)"
+          python -c "import os; required = ['QDRANT_URL', 'QDRANT_API_KEY', 'OPENROUTER_API_KEY', 'DEEPINFRA_API_KEY']; missing = [k for k in required if not os.getenv(k)]; print('✅ All required environment variables set' if not missing else f'❌ Missing: {missing}'); exit(1 if missing else 0)"
 
       - name: 🗑️ Clean Qdrant Collections (Full Re-index)
         if: github.event.inputs.skip_cleanup != 'true'
@@ -84,13 +83,12 @@ jobs:
 
       - name: ✅ Verify Embedding Service
         env:
-          CLOUDFLARE_AI_GATEWAY_TOKEN: ${{ secrets.CLOUDFLARE_AI_GATEWAY_TOKEN }}
           DEEPINFRA_API_KEY: ${{ secrets.DEEPINFRA_API_KEY }}
         run: |
-          echo "✅ Cloudflare AI Gateway ready (no warmup needed)"
+          echo "✅ DeepInfra embedding service ready"
           echo "   Provider: DeepInfra"
-          echo "   Model: Qwen/Qwen3-Embedding-8B (4096D)"
-          echo "   No cold starts - instant availability"
+          echo "   Model: Qwen/Qwen3-Embedding-8B-batch (4096D)"
+          echo "   Minimal cold starts - fast availability"
 
       - name: 📝 Capture Repository Metadata
         id: repo_metadata
@@ -107,13 +105,12 @@ jobs:
           QDRANT_URL: ${{ secrets.QDRANT_URL }}
           QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          CLOUDFLARE_AI_GATEWAY_TOKEN: ${{ secrets.CLOUDFLARE_AI_GATEWAY_TOKEN }}
           DEEPINFRA_API_KEY: ${{ secrets.DEEPINFRA_API_KEY }}
           PRIORITY: ${{ github.event.inputs.priority || 'ALL' }}
         run: |
           echo "🚀 Starting full vector ingestion pipeline..."
           echo "   Processing: Rust, TypeScript, Solidity, Documentation"
-          echo "   Embedding: Cloudflare AI Gateway + DeepInfra"
+          echo "   Embedding: DeepInfra"
           echo "   Priority filter: ${PRIORITY}"
           echo "start_time=$(date +%s)" >> $GITHUB_OUTPUT
           make ingest

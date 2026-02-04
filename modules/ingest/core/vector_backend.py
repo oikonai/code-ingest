@@ -1,8 +1,7 @@
 """
 Vector Backend Abstraction
 
-Provides a common interface for vector database backends (Qdrant, SurrealDB).
-Allows switching between backends via configuration.
+Provides a common interface for the SurrealDB vector database backend.
 
 Following CLAUDE.md: <500 lines, single responsibility (backend abstraction).
 """
@@ -17,14 +16,14 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# Point Structure (shared between backends)
+# Point Structure
 # ============================================================================
 
 @dataclass
 class VectorPoint:
     """
-    Common structure for vector points across backends.
-    Maps to PointStruct for Qdrant, custom structure for SurrealDB.
+    Common structure for vector points.
+    Used by SurrealDB backend for vector storage operations.
     """
     id: str
     vector: List[float]
@@ -37,10 +36,9 @@ class VectorPoint:
 
 class VectorBackend(Protocol):
     """
-    Protocol defining the interface for vector database backends.
+    Protocol defining the interface for the SurrealDB vector database backend.
     
-    This allows both Qdrant and SurrealDB implementations to be used
-    interchangeably through a common interface.
+    Provides a consistent interface for vector storage and search operations.
     """
     
     @property
@@ -197,63 +195,21 @@ class VectorBackend(Protocol):
 # ============================================================================
 
 def create_vector_backend(
-    backend_type: Optional[str] = None,
     embedding_size: int = 4096
 ) -> VectorBackend:
     """
-    Factory function to create vector backend based on configuration.
+    Factory function to create SurrealDB vector backend.
     
     Args:
-        backend_type: Type of backend ('qdrant' or 'surrealdb'). 
-                     If None, reads from VECTOR_BACKEND env var.
         embedding_size: Size of embedding vectors (default: 4096)
         
     Returns:
-        Configured vector backend instance
+        Configured SurrealDB vector backend instance
         
     Raises:
-        ValueError: If backend_type is invalid or required env vars are missing
+        RuntimeError: If SurrealDB connection fails or required env vars are missing
     """
-    if backend_type is None:
-        backend_type = os.getenv('VECTOR_BACKEND', 'qdrant').lower()
+    logger.info("🔧 Creating SurrealDB vector backend")
     
-    logger.info(f"🔧 Creating vector backend: {backend_type}")
-    
-    if backend_type == 'qdrant':
-        from ..services.vector_client import QdrantVectorClient
-        return QdrantVectorClient()
-    
-    elif backend_type == 'surrealdb':
-        from ..services.surrealdb_vector_client import SurrealDBVectorClient
-        return SurrealDBVectorClient(embedding_size=embedding_size)
-    
-    else:
-        raise ValueError(
-            f"Unknown vector backend type: '{backend_type}'. "
-            f"Must be 'qdrant' or 'surrealdb'. "
-            f"Set VECTOR_BACKEND environment variable."
-        )
-
-
-# ============================================================================
-# Backend Type Detection
-# ============================================================================
-
-def get_backend_type() -> str:
-    """
-    Get the configured backend type from environment.
-    
-    Returns:
-        Backend type string ('qdrant' or 'surrealdb')
-    """
-    return os.getenv('VECTOR_BACKEND', 'qdrant').lower()
-
-
-def is_surrealdb_backend() -> bool:
-    """Check if SurrealDB backend is configured."""
-    return get_backend_type() == 'surrealdb'
-
-
-def is_qdrant_backend() -> bool:
-    """Check if Qdrant backend is configured."""
-    return get_backend_type() == 'qdrant'
+    from ..services.surrealdb_vector_client import SurrealDBVectorClient
+    return SurrealDBVectorClient(embedding_size=embedding_size)

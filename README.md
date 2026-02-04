@@ -19,7 +19,7 @@ A production-ready code ingestion pipeline that:
 
 - **📂 Multi-Repository Support** - Clone and ingest multiple repos with priority-based processing
 - **🔍 Multi-Language Parsing** - AST-based parsing for Rust, TypeScript, Solidity, and Markdown
-- **🧠 Semantic Embeddings** - Qwen3-Embedding-8B (4096D) via Cloudflare AI Gateway or Modal
+- **🧠 Semantic Embeddings** - Qwen3-Embedding-8B (4096D) via DeepInfra
 - **💾 Vector Storage** - Qdrant (cloud) or SurrealDB (local) with language-specific collections
 - **🐳 Docker Compose** - Complete local setup with SurrealDB for development
 - **🔎 Cross-Language Search** - Semantic search across all ingested codebases
@@ -34,7 +34,7 @@ A production-ready code ingestion pipeline that:
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv) (installed automatically if missing)
 - Qdrant Vector Database (local or cloud)
-- Embedding service (Cloudflare AI Gateway + DeepInfra OR Modal)
+- Embedding service (DeepInfra API)
 - GitHub Personal Access Token (for private repos)
 
 ### Installation
@@ -56,7 +56,6 @@ cp .env.example .env
 # Edit .env with your credentials:
 # QDRANT_URL=your_qdrant_url
 # QDRANT_API_KEY=your_qdrant_key
-# CLOUDFLARE_AI_GATEWAY_TOKEN=your_token
 # DEEPINFRA_API_KEY=your_key
 # GITHUB_TOKEN=your_pat_token
 
@@ -224,7 +223,7 @@ code-ingest/
 │       │   ├── 🔄 pipeline.py        # Multi-language ingestion orchestrator
 │       │   ├── ⚙️ config.py          # Repository and ingestion configuration
 │       │   ├── 🔗 vector_backend.py  # Vector backend abstraction (Qdrant/SurrealDB)
-│       │   ├── 🔗 embedding_service.py # Embedding generation (Modal/Cloudflare)
+│       │   ├── 🔗 embedding_service.py # Embedding generation (DeepInfra)
 │       │   ├── 📦 batch_processor.py  # Concurrent batch processing
 │       │   ├── 💾 storage_manager.py  # Vector storage management
 │       │   ├── ✅ checkpoint_manager.py # Resume from interruption
@@ -240,8 +239,6 @@ code-ingest/
 │       ├── services/
 │       │   ├── 🔗 vector_client.py       # Qdrant database client
 │       │   ├── 🔗 surrealdb_vector_client.py # SurrealDB database client
-│       │   ├── 🚀 tei_service.py         # TEI embedding service (Modal L4 GPU)
-│       │   ├── 🤖 modal_client.py        # Modal service client wrapper
 │       │   ├── 🔍 enhanced_ranking.py    # Advanced search ranking
 │       │   └── ✅ quality_validator.py   # Code quality validation
 │       ├── scripts/
@@ -290,13 +287,6 @@ make repo-metadata        # Capture repository commit metadata
 make stats-report         # Generate comprehensive statistics report
 ```
 
-### 🚀 Modal & Embedding Services
-```bash
-make modal-deploy     # Deploy Qwen3-Embedding-8B to Modal (L4 GPU)
-make modal-health     # Check Modal embedding service health
-make modal-monitor    # Monitor GPU distribution
-```
-
 ### ⚙️ System Management
 ```bash
 make health           # System health check (ingestion + vector search)
@@ -323,7 +313,7 @@ flowchart LR
 
 1. **📂 Repository Manager** - Clones and manages GitHub repositories with priority-based selection
 2. **🔍 Language Parsers** - AST-based parsing for Rust, TypeScript, Solidity, Documentation
-3. **🧠 Embedding Service** - State-of-the-art embeddings (Qwen3-Embedding-8B, 4096D)
+3. **🧠 Embedding Service** - State-of-the-art embeddings (Qwen3-Embedding-8B, 4096D) via DeepInfra
 4. **💾 Vector Storage** - Qdrant database with language-specific collections
 5. **🔎 Search Engine** - Cross-language semantic search with enhanced ranking
 6. **📊 Monitoring** - Health checks, statistics, and quality validation
@@ -346,13 +336,9 @@ flowchart LR
 QDRANT_URL=https://your-qdrant-instance.qdrant.io
 QDRANT_API_KEY=your_qdrant_api_key
 
-# Embedding Service (Option 1: Cloudflare AI Gateway)
-CLOUDFLARE_AI_GATEWAY_TOKEN=your_cloudflare_token
+# Embedding Service (DeepInfra)
+# Get your API key at https://deepinfra.com
 DEEPINFRA_API_KEY=your_deepinfra_key
-
-# Embedding Service (Option 2: Modal)
-MODAL_TOKEN_ID=your_modal_token_id
-MODAL_TOKEN_SECRET=your_modal_token_secret
 
 # Repository Cloning
 GITHUB_TOKEN=your_github_pat_token
@@ -411,7 +397,7 @@ make stats-report   # Comprehensive ingestion statistics
 ### Key Metrics
 - **Vector Collections**: 50K+ code chunks across all collections
 - **Search Latency**: <200ms for semantic queries
-- **Embedding Generation**: ~45 embeddings/sec via Modal TEI (L4 GPU)
+- **Embedding Generation**: Via DeepInfra API (Qwen3-Embedding-8B model)
 - **Ingestion Throughput**: Varies by repo size and language complexity
 - **Documentation Chunks**: Intelligent section grouping (6k-12k chars per chunk)
 
@@ -485,9 +471,8 @@ This toolkit was built to support multi-repository code search and can be used w
 **Example use case:** Configure your organization's repositories in `config/repositories.yaml`, run the ingestion pipeline to vectorize your codebase, and use the MCP server to enable semantic code search in your IDE or AI tools.
 
 **Key technologies:**
-- **Modal Platform** - Serverless GPU infrastructure for embeddings
+- **DeepInfra** - Embedding service API (https://deepinfra.com)
 - **Qdrant** - Vector database for semantic search
-- **Cloudflare AI Gateway** - Embedding service routing and caching
 
 ## 📄 License
 

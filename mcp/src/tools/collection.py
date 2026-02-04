@@ -46,7 +46,7 @@ def _list_collections_impl(collection_type: Optional[str] = None) -> dict:
         Dictionary with collections grouped by type and metadata
 
     Raises:
-        ToolError: If Qdrant client is not initialized or listing fails
+        ToolError: If vector client is not initialized or listing fails
     """
     try:
         global _vector_client
@@ -75,7 +75,7 @@ def _list_collections_impl(collection_type: Optional[str] = None) -> dict:
             if not info:
                 continue
             
-            # Handle both Qdrant and SurrealDB response formats
+            # Handle SurrealDB response format
             points_count = info.get('vectors_count', info.get('points_count', 0))
             status = info.get('status', 'unknown')
             
@@ -197,13 +197,13 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     def health_check() -> dict:
         """
-        Check Qdrant connection health and return system status.
+        Check vector database connection health and return system status.
 
         Returns:
             Dictionary with connection status, collections count, and available collections
 
         Raises:
-            ToolError: If Qdrant client is not initialized or connection fails
+            ToolError: If vector client is not initialized or connection fails
         """
         try:
             global _vector_client
@@ -230,7 +230,7 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     def get_collection_info(collection_name: str) -> dict:
         """
-        Get detailed information about a specific Qdrant collection.
+        Get detailed information about a specific vector database collection.
 
         Args:
             collection_name: Name of the collection (e.g., 'code_rust', 'code_typescript', or with prefix)
@@ -240,7 +240,7 @@ def register_tools(mcp: FastMCP):
 
         Raises:
             NotFoundError: If collection doesn't exist
-            ToolError: If Qdrant client is not initialized or other errors occur
+            ToolError: If vector client is not initialized or other errors occur
         """
         try:
             global _vector_client
@@ -256,7 +256,7 @@ def register_tools(mcp: FastMCP):
             if not info:
                 raise NotFoundError(f"Collection '{collection_name}' not found")
 
-            # Handle both Qdrant and SurrealDB response formats
+            # Extract stats from SurrealDB response format
             points_count = info.get('vectors_count', info.get('points_count', 0))
             status = info.get('status', 'unknown')
             
@@ -296,7 +296,7 @@ def register_tools(mcp: FastMCP):
     @mcp.tool()
     def list_collections() -> dict:
         """
-        List all available Qdrant collections grouped by type.
+        List all available vector database collections grouped by type.
 
         Returns collections organized by:
         - language: BY_LANGUAGE collections (rust, typescript, solidity, etc.)
@@ -324,7 +324,7 @@ def register_tools(mcp: FastMCP):
             }
 
         Raises:
-            ToolError: If Qdrant client is not initialized or listing fails
+            ToolError: If vector client is not initialized or listing fails
         """
         return _list_collections_impl()
 

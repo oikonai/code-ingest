@@ -1,7 +1,7 @@
 """
-Embedding Service for Cloudflare AI Gateway + DeepInfra Integration
+Embedding Service for DeepInfra Integration
 
-Handles embedding generation via Cloudflare AI Gateway with DeepInfra backend.
+Handles embedding generation via DeepInfra's OpenAI-compatible API.
 Following CLAUDE.md: <500 lines, single responsibility (embedding generation only).
 """
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingService:
     """
-    Service for generating embeddings via Cloudflare AI Gateway + DeepInfra.
+    Service for generating embeddings via DeepInfra.
 
     Responsibilities:
     - Generate embeddings using OpenAI-compatible API
@@ -34,72 +34,56 @@ class EmbeddingService:
 
     def __init__(
         self,
-        base_url: str = None,
-        model: str = "Qwen/Qwen3-Embedding-8B",
+        base_url: str = "https://api.deepinfra.com/v1/openai",
+        model: str = "Qwen/Qwen3-Embedding-8B-batch",
         rate_limit: int = 4,
         embedding_size: int = 4096,
         timeout: int = 60,
     ):
         """
-        Initialize embedding service with Cloudflare AI Gateway.
-
-        Cloudflare BYOK (Bring Your Own Keys): The DeepInfra API key is stored in
-        Cloudflare's Provider Keys and auto-injected by the gateway. No need to
-        pass it in requests.
+        Initialize embedding service with DeepInfra.
 
         Args:
-            base_url: Cloudflare AI Gateway endpoint (or set CLOUDFLARE_BASE_URL env var)
-            model: Embedding model name (default: Qwen/Qwen3-Embedding-8B)
+            base_url: DeepInfra API endpoint (default: https://api.deepinfra.com/v1/openai)
+            model: Embedding model name (default: Qwen/Qwen3-Embedding-8B-batch)
             rate_limit: Maximum concurrent requests
-            embedding_size: Expected embedding dimension (Qwen3 = 4096)
+            embedding_size: Expected embedding dimension (4096 for Qwen3)
             timeout: Request timeout in seconds
         """
-        # Get credentials from environment
-        self.cf_token = os.getenv("CLOUDFLARE_AI_GATEWAY_TOKEN")
+        # Get API key from environment
         self.deepinfra_key = os.getenv("DEEPINFRA_API_KEY")
 
-        if not self.cf_token:
-            raise ValueError("CLOUDFLARE_AI_GATEWAY_TOKEN environment variable required")
         if not self.deepinfra_key:
             raise ValueError("DEEPINFRA_API_KEY environment variable required")
 
         # Configuration
-        self.base_url = base_url or os.getenv(
-            "CLOUDFLARE_BASE_URL",
-            "https://gateway.ai.cloudflare.com/v1/2de868ad9edb1b11250bc516705e1639/aig/custom-deepinfra/v1/openai"
-        )
+        self.base_url = base_url
         self.model = model
         self.embedding_size = embedding_size
         self.timeout = timeout
 
         # Initialize OpenAI client
-        # Note: BYOK works with curl but NOT with OpenAI Python SDK
-        # The SDK always adds Authorization header which prevents BYOK from working
         self.client = OpenAI(
-            api_key=self.deepinfra_key,  # DeepInfra API key required by OpenAI SDK
+            api_key=self.deepinfra_key,
             base_url=self.base_url,
             timeout=timeout,
-            default_headers={
-                "cf-aig-authorization": f"Bearer {self.cf_token}",
-            },
         )
 
         # Rate limiting
         self.semaphore = threading.Semaphore(rate_limit)
 
-        logger.info(f"🔗 Embedding service initialized (Cloudflare BYOK)")
+        logger.info(f"🔗 Embedding service initialized (DeepInfra)")
         logger.info(f"   - Base URL: {self.base_url}")
         logger.info(f"   - Model: {self.model}")
         logger.info(f"   - Rate limit: {rate_limit} concurrent requests")
         logger.info(f"   - Embedding size: {embedding_size}D")
         logger.info(f"   - Timeout: {timeout}s")
-        logger.info(f"   - Auth: Cloudflare AI Gateway (DeepInfra key auto-injected)")
 
     def warmup_containers(self, num_containers: int = 4, min_success_rate: float = 0.5) -> bool:
         """
         Warmup method for backward compatibility.
 
-        Cloudflare AI Gateway doesn't have cold starts, so this is a no-op.
+        DeepInfra API has minimal cold starts, so this is a no-op.
         Always returns True.
 
         Args:
@@ -109,7 +93,7 @@ class EmbeddingService:
         Returns:
             True (always succeeds)
         """
-        logger.info(f"✅ Cloudflare AI Gateway ready (no warmup needed)")
+        logger.info(f"✅ DeepInfra embedding service ready")
         logger.info(f"   Model: {self.model} ({self.embedding_size}D)")
         return True
 

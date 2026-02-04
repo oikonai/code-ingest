@@ -1,7 +1,7 @@
 # Module Dependency Graph - Code Ingestion System
 
 > **Auto-synced with codebase**
-> **Last Updated:** 2026-01-30
+> **Last Updated:** 2026-02-04
 > **Version:** 3.0.0-ingestion-only
 
 ## Complete Dependency Map
@@ -52,10 +52,10 @@ modules/ingest/core/pipeline.py (IngestionPipeline)
 
 **EmbeddingService** (`modules/ingest/core/embedding_service.py`)
 ```
-├── requests → HTTP client for API calls
-├── asyncio, aiohttp → Async HTTP (warmup)
+├── openai → OpenAI-compatible client for DeepInfra API
+├── threading → Semaphore for rate limiting
 ├── modules/ingest/core/config → IngestionConfig
-└── External: Cloudflare AI Gateway OR Modal TEI endpoint
+└── External: DeepInfra API (https://api.deepinfra.com/v1/openai)
 ```
 
 **QdrantVectorClient** (`modules/ingest/services/vector_client.py`)
@@ -167,8 +167,8 @@ modules/__init__.py
         ├── modules/ingest/core/config.py
         │
         ├── modules/ingest/core/embedding_service.py
-        │   ├── requests
-        │   └── External: Cloudflare AI Gateway / Modal TEI
+        │   ├── openai
+        │   └── External: DeepInfra API
         │
         ├── modules/ingest/services/vector_client.py
         │   ├── qdrant_client
@@ -218,9 +218,7 @@ beautifulsoup4>=4.12.0   # HTML parsing in markdown
 
 ### Embedding Service
 ```python
-requests>=2.31.0         # HTTP client for embedding APIs
-aiohttp>=3.9.0           # Async HTTP for warmup
-modal>=0.65.0            # Modal platform (if using Modal TEI)
+openai>=1.0.0            # OpenAI-compatible client for DeepInfra API
 ```
 
 ### Development
@@ -274,11 +272,11 @@ file_processor = FileProcessor(
 
 ## Version Compatibility Matrix
 
-| Module | Python | Qdrant | Modal | Tree-sitter |
-|--------|--------|--------|-------|-------------|
-| ingest/* | 3.11+ | 1.7.0+ | 0.65+ | 0.21.0+ |
+| Module | Python | Qdrant | OpenAI | Tree-sitter |
+|--------|--------|--------|--------|-------------|
+| ingest/* | 3.11+ | 1.7.0+ | 1.0.0+ | 0.21.0+ |
 | parsers/* | 3.11+ | N/A | N/A | 0.21.0+ |
-| services/* | 3.11+ | 1.7.0+ | 0.65+ | N/A |
+| services/* | 3.11+ | 1.7.0+ | N/A | N/A |
 | scripts/* | 3.11+ | 1.7.0+ | N/A | N/A |
 
 ## Breaking Changes Log

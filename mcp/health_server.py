@@ -51,8 +51,7 @@ class HealthHandler(BaseHTTPRequestHandler):
         response = {
             'status': status,
             'surrealdb': 'ok' if surrealdb_ok else 'unavailable',
-            'ingestion': 'complete' if ingestion_complete else 'pending',
-            'backend_type': os.getenv('VECTOR_BACKEND', 'qdrant')
+            'ingestion': 'complete' if ingestion_complete else 'pending'
         }
         
         # Send response

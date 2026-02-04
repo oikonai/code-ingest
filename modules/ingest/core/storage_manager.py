@@ -1,7 +1,7 @@
 """
-Storage Manager for Qdrant Vector Operations
+Storage Manager for Vector Database Operations
 
-Handles vector storage operations with Qdrant vector database.
+Handles vector storage operations with SurrealDB vector database.
 Following CLAUDE.md: <500 lines, single responsibility (storage operations only).
 """
 
@@ -10,14 +10,14 @@ import hashlib
 import uuid
 from datetime import datetime
 from typing import List, Dict, Any
-from qdrant_client.models import PointStruct
+from .vector_backend import VectorPoint
 
 logger = logging.getLogger(__name__)
 
 
 class StorageManager:
     """
-    Manages vector storage operations with Qdrant.
+    Manages vector storage operations with SurrealDB.
 
     Responsibilities:
     - Setup collections
@@ -31,7 +31,7 @@ class StorageManager:
         Initialize storage manager.
 
         Args:
-            vector_client: QdrantVectorClient instance
+            vector_client: SurrealDB vector client instance
             embedding_size: Expected embedding dimension
         """
         self.vector_client = vector_client
@@ -40,7 +40,7 @@ class StorageManager:
 
     def setup_collections(self, collections: Dict[str, str]) -> bool:
         """
-        Setup all required Qdrant collections.
+        Setup all required vector database collections.
 
         Args:
             collections: Dict mapping language to collection name
@@ -79,7 +79,7 @@ class StorageManager:
         language: str
     ) -> int:
         """
-        Store code chunk vectors in Qdrant (single collection).
+        Store code chunk vectors in vector database (single collection).
         
         DEPRECATED: Use store_code_vectors_multi_collection() for multi-collection support.
 
@@ -104,7 +104,7 @@ class StorageManager:
         language: str
     ) -> int:
         """
-        Store code chunk vectors in multiple Qdrant collections.
+        Store code chunk vectors in multiple vector database collections.
 
         Args:
             chunks: List of code chunk objects
@@ -207,7 +207,7 @@ class StorageManager:
         collection_name: str
     ) -> int:
         """
-        Store documentation vectors in Qdrant (single collection).
+        Store documentation vectors in vector database (single collection).
         
         DEPRECATED: Use store_doc_vectors_multi_collection() for multi-collection support.
 
@@ -230,7 +230,7 @@ class StorageManager:
         collection_names: List[str]
     ) -> int:
         """
-        Store documentation vectors in multiple Qdrant collections.
+        Store documentation vectors in multiple vector database collections.
 
         Args:
             doc_chunks: List of documentation chunk dictionaries
@@ -256,7 +256,7 @@ class StorageManager:
         points = []
 
         for doc_chunk, embedding in zip(doc_chunks, embeddings):
-            point = PointStruct(
+            point = VectorPoint(
                 id=str(uuid.uuid4()),
                 vector=embedding,
                 payload={

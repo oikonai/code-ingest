@@ -24,11 +24,10 @@ Code Ingest MCP Server - A minimal FastMCP server providing semantic code search
 QDRANT_URL=https://xxxxx.gcp.cloud.qdrant.io
 QDRANT_API_KEY=your_qdrant_jwt_token
 
-# Cloudflare AI Gateway + DeepInfra
-EMBEDDING_ENDPOINT=https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
-CLOUDFLARE_API_TOKEN=your_cloudflare_token
+# DeepInfra (Embeddings)
 DEEPINFRA_API_KEY=your_deepinfra_key
-EMBEDDING_MODEL=custom-deepinfra/Qwen/Qwen2.5-7B-Instruct-Embedding  # Optional
+EMBEDDING_MODEL=Qwen/Qwen3-Embedding-8B-batch  # Optional (default)
+EMBEDDING_ENDPOINT=https://api.deepinfra.com/v1/openai  # Optional (default)
 ```
 
 ### Optional Variables
@@ -162,8 +161,6 @@ default_collection: myproject_code_rust
       "env": {
         "QDRANT_URL": "...",
         "QDRANT_API_KEY": "...",
-        "EMBEDDING_ENDPOINT": "...",
-        "CLOUDFLARE_API_TOKEN": "...",
         "DEEPINFRA_API_KEY": "..."
       }
     }
@@ -232,8 +229,8 @@ cross_collection_search(
 - **Storage:** In-memory LRU cache (max 1000 entries)
 
 ### Embedding Generation
-- **Service:** Cloudflare AI Gateway → DeepInfra
-- **Model:** Qwen2.5-7B-Instruct-Embedding (4096 dimensions)
+- **Service:** DeepInfra API (direct)
+- **Model:** Qwen/Qwen3-Embedding-8B-batch (default, configurable)
 - **Warmup:** Pre-warm endpoint on server startup (30s timeout)
 
 ### Search Performance

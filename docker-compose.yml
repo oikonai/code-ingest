@@ -42,11 +42,9 @@ services:
       - SURREALDB_USER=root
       - SURREALDB_PASS=root
       
-      # Embedding service (external)
-      - EMBEDDING_ENDPOINT=${EMBEDDING_ENDPOINT}
-      - CLOUDFLARE_AI_GATEWAY_TOKEN=${CLOUDFLARE_AI_GATEWAY_TOKEN}
+      # Embedding service (DeepInfra)
       - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-custom-deepinfra/Qwen/Qwen2.5-7B-Instruct-Embedding}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B-batch}
       
       # GitHub token for cloning
       - GITHUB_TOKEN=${GITHUB_TOKEN}
@@ -81,11 +79,9 @@ services:
       - SURREALDB_USER=root
       - SURREALDB_PASS=root
       
-      # Embedding service (for search)
-      - EMBEDDING_ENDPOINT=${EMBEDDING_ENDPOINT}
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_AI_GATEWAY_TOKEN}
+      # Embedding service (DeepInfra)
       - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-custom-deepinfra/Qwen/Qwen2.5-7B-Instruct-Embedding}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B-batch}
       
       # Health endpoint configuration
       - DOCKER_ENV=true

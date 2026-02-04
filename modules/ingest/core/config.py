@@ -180,16 +180,25 @@ class IngestionConfig:
     # Note: This is also loaded from repositories.yaml and available as REPOS_BASE_DIR module variable
     repos_base_dir: str = "./repos"
 
-    # Cloudflare AI Gateway + DeepInfra endpoint
-    # Format: https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/custom-{slug}/v1/openai
-    # Note: OpenAI client appends /embeddings to form full path
-    cloudflare_base_url: str = "https://gateway.ai.cloudflare.com/v1/2de868ad9edb1b11250bc516705e1639/aig/custom-deepinfra/v1/openai"
+    # DeepInfra API endpoint
+    # Default: https://api.deepinfra.com/v1/openai
+    # Override via DEEPINFRA_EMBEDDING_BASE_URL environment variable
+    deepinfra_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "DEEPINFRA_EMBEDDING_BASE_URL",
+            "https://api.deepinfra.com/v1/openai"
+        )
+    )
 
     # Embedding model configuration
-    embedding_model: str = "Qwen/Qwen3-Embedding-8B"
-
-    # DEPRECATED: Modal TEI endpoint (kept for reference)
-    # modal_endpoint: str = "https://your-org--embed.modal.run"
+    # Default: Qwen/Qwen3-Embedding-8B-batch (batch-optimized)
+    # Override via EMBEDDING_MODEL environment variable
+    embedding_model: str = field(
+        default_factory=lambda: os.getenv(
+            "EMBEDDING_MODEL",
+            "Qwen/Qwen3-Embedding-8B-batch"
+        )
+    )
 
     # Checkpoint configuration
     checkpoint_file: Path = field(default_factory=lambda: Path("./ingestion_checkpoint.json"))
@@ -203,8 +212,8 @@ class IngestionConfig:
     embedding_size: int = 4096  # Qwen3-Embedding-8B dimension
 
     # Timeout configuration (seconds)
-    embedding_timeout: int = 60  # Cloudflare AI Gateway is much faster than Modal
-    warmup_timeout: int = 60  # No cold starts with Cloudflare AI Gateway
+    embedding_timeout: int = 60  # DeepInfra API timeout
+    warmup_timeout: int = 60  # Minimal cold starts with DeepInfra
 
     # Collection names by language (BY_LANGUAGE)
     # Loaded from config/collections.yaml if present, else uses defaults below

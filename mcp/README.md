@@ -9,7 +9,7 @@ This MCP server enables AI assistants to search through ingested code repositori
 - **4 Core Tools**: Collection listing, semantic search (single and multi-collection)
 - **2 Resources**: Collection information and search best practices
 - **Config-Driven**: Collection names loaded from shared YAML (synchronized with ingestion pipeline)
-- **Fast**: Query caching (30 minutes) and optimized embeddings via Cloudflare AI Gateway
+- **Fast**: Query caching (30 minutes) and optimized embeddings via DeepInfra
 
 ## Features
 
@@ -35,7 +35,7 @@ Collection names are defined in `config/collections.yaml` (shared with the inges
 
 - Python 3.11+
 - Qdrant vector database (cloud or self-hosted)
-- Cloudflare AI Gateway account + DeepInfra API key (for embeddings)
+- DeepInfra API key (for embeddings)
 
 ### Setup
 
@@ -57,8 +57,6 @@ Collection names are defined in `config/collections.yaml` (shared with the inges
    # Edit .env with your credentials:
    # - QDRANT_URL
    # - QDRANT_API_KEY
-   # - EMBEDDING_ENDPOINT
-   # - CLOUDFLARE_API_TOKEN
    # - DEEPINFRA_API_KEY
    ```
 
@@ -86,10 +84,9 @@ Collection names are defined in `config/collections.yaml` (shared with the inges
 |----------|----------|---------|-------------|
 | `QDRANT_URL` | Yes | - | Qdrant instance URL |
 | `QDRANT_API_KEY` | Yes | - | Qdrant API key |
-| `EMBEDDING_ENDPOINT` | Yes | - | Cloudflare AI Gateway URL |
-| `CLOUDFLARE_API_TOKEN` | Yes | - | Cloudflare API token |
-| `DEEPINFRA_API_KEY` | Yes | - | DeepInfra API key |
-| `EMBEDDING_MODEL` | No | `custom-deepinfra/Qwen/Qwen2.5-7B-Instruct-Embedding` | Embedding model |
+| `DEEPINFRA_API_KEY` | Yes | - | DeepInfra API key (for embeddings) |
+| `EMBEDDING_MODEL` | No | `Qwen/Qwen3-Embedding-8B-batch` | Embedding model |
+| `EMBEDDING_ENDPOINT` | No | `https://api.deepinfra.com/v1/openai` | DeepInfra API base URL (optional override) |
 | `COLLECTIONS_CONFIG` | No | `config/collections.yaml` | Path to collections config |
 
 ### Collections Config
@@ -135,9 +132,7 @@ Add to your Cursor MCP settings (`.cursor/settings.json` or global settings):
       "env": {
         "QDRANT_URL": "https://your-instance.qdrant.io",
         "QDRANT_API_KEY": "your_api_key",
-        "EMBEDDING_ENDPOINT": "https://gateway.ai.cloudflare.com/v1/{account}/{gateway}",
-        "CLOUDFLARE_API_TOKEN": "your_token",
-        "DEEPINFRA_API_KEY": "your_key"
+        "DEEPINFRA_API_KEY": "your_deepinfra_api_key"
       }
     }
   }
@@ -208,9 +203,9 @@ Collection aliases make queries shorter:
         ┌─────────┴─────────┐
         │                   │
 ┌───────▼────────┐  ┌──────▼────────┐
-│ Qdrant Vector  │  │   Cloudflare  │
-│   Database     │  │   AI Gateway  │
-│ (code vectors) │  │  (embeddings) │
+│ Qdrant Vector  │  │   DeepInfra   │
+│   Database     │  │  (embeddings) │
+│ (code vectors) │  │               │
 └────────────────┘  └───────────────┘
 ```
 
@@ -237,12 +232,13 @@ make ingest
 
 ### "Embedding endpoint timeout"
 
-**Cause:** Cloudflare AI Gateway or DeepInfra is slow/down.
+**Cause:** DeepInfra API is slow or unavailable.
 
 **Solution:**
-1. Check your Cloudflare and DeepInfra API status
-2. Verify `EMBEDDING_ENDPOINT` format is correct
-3. Increase timeout in config (future feature)
+1. Check DeepInfra API status at https://deepinfra.com/status
+2. Verify `DEEPINFRA_API_KEY` is correct
+3. Optionally override `EMBEDDING_ENDPOINT` if using a custom DeepInfra endpoint
+4. Increase timeout in config (future feature)
 
 ### "YAML config not found"
 

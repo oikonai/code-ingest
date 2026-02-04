@@ -24,7 +24,7 @@ This directory contains Docker Compose configuration for running the code ingest
 2. **Environment variables** configured:
    - Copy `.env.example` to `.env`
    - Set `VECTOR_BACKEND=surrealdb`
-   - Configure embedding service (Cloudflare + DeepInfra)
+   - Configure embedding service (DeepInfra)
    - Add GitHub token for repository cloning
 
 ## Quick Start
@@ -34,8 +34,6 @@ This directory contains Docker Compose configuration for running the code ingest
    cp .env.example .env
    # Edit .env and set:
    # - VECTOR_BACKEND=surrealdb
-   # - EMBEDDING_ENDPOINT (Cloudflare AI Gateway)
-   # - CLOUDFLARE_AI_GATEWAY_TOKEN
    # - DEEPINFRA_API_KEY
    # - GITHUB_TOKEN (for cloning repos)
    ```

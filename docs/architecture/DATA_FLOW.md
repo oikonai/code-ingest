@@ -1,6 +1,6 @@
 # Code Ingestion Data Flow Architecture
 
-> **Last Updated:** 2026-01-30
+> **Last Updated:** 2026-02-04
 > **Scope:** Complete ingestion lifecycle and data transformations
 
 ## Overview
@@ -61,8 +61,7 @@ This document traces the complete journey of code through the ingestion system, 
 │ 1. Environment Configuration                                │
 │    load_dotenv()                                            │
 │    - QDRANT_URL, QDRANT_API_KEY                             │
-│    - CLOUDFLARE_AI_GATEWAY_TOKEN, DEEPINFRA_API_KEY         │
-│      OR MODAL_TOKEN_ID, MODAL_TOKEN_SECRET                  │
+│    - DEEPINFRA_API_KEY                                      │
 └────────────────────┬────────────────────────────────────────┘
                      │
 ┌────────────────────▼────────────────────────────────────────┐
@@ -70,7 +69,7 @@ This document traces the complete journey of code through the ingestion system, 
 │    pipeline = IngestionPipeline()                           │
 │                                                             │
 │    Initializes:                                             │
-│    - EmbeddingService (Cloudflare/Modal backend)            │
+│    - EmbeddingService (DeepInfra backend)                  │
 │    - QdrantVectorClient (vector database connection)        │
 │    - FileProcessor (with language parsers)                  │
 │    - BatchProcessor (concurrent embedding)                  │
@@ -81,7 +80,7 @@ This document traces the complete journey of code through the ingestion system, 
 │ 3. Service Warmup (Optional)                                │
 │    pipeline.warmup_services()                               │
 │                                                             │
-│    - Pre-generate test embedding to reduce cold start       │
+│    - Verify DeepInfra API connectivity                      │
 │    - Verify Qdrant connectivity                             │
 │    - Initialize language parsers                            │
 └────────────────────┬────────────────────────────────────────┘
@@ -214,13 +213,16 @@ This document traces the complete journey of code through the ingestion system, 
 ┌────────────────────▼────────────────────────────────────────┐
 │ 2. Embedding Generation (EmbeddingService)                  │
 │                                                             │
-│    Backend: Cloudflare AI Gateway + DeepInfra              │
+│    Backend: DeepInfra API (OpenAI-compatible)              │
 │    ┌─────────────────────────────────────────┐             │
 │    │ Request:                                │             │
-│    │   POST /v1/embeddings                   │             │
+│    │   POST https://api.deepinfra.com/v1/openai/embeddings │
+│    │   Headers:                               │             │
+│    │     Authorization: Bearer {DEEPINFRA_API_KEY} │        │
+│    │   Body:                                  │             │
 │    │   {                                     │             │
 │    │     "input": ["code chunk 1", ...],    │             │
-│    │     "model": "Qwen/Qwen3-Embedding-8B"  │             │
+│    │     "model": "Qwen/Qwen3-Embedding-8B-batch" │        │
 │    │   }                                     │             │
 │    │                                         │             │
 │    │ Response:                               │             │
@@ -232,15 +234,10 @@ This document traces the complete journey of code through the ingestion system, 
 │    │   }                                     │             │
 │    └─────────────────────────────────────────┘             │
 │                                                             │
-│    OR Backend: Modal TEI                                   │
-│    ┌─────────────────────────────────────────┐             │
-│    │ Request:                                │             │
-│    │   POST https://your-org--embed.modal.run            │
-│    │   {"inputs": ["code chunk 1", ...]}     │             │
-│    │                                         │             │
-│    │ Response:                               │             │
-│    │   [[f32; 4096], ...]                    │             │
-│    └─────────────────────────────────────────┘             │
+│    Features:                                                │
+│    - Rate limiting: 4 concurrent requests                  │
+│    - Retry logic: Exponential backoff (max 3 retries)      │
+│    - Validation: Dimension, NaN, None checks                │
 └────────────────────┬────────────────────────────────────────┘
                      │
 ┌────────────────────▼────────────────────────────────────────┐
@@ -415,7 +412,7 @@ This document traces the complete journey of code through the ingestion system, 
 | File Discovery | ~1000 files/sec | <1s | Filesystem I/O |
 | AST Parsing | ~50-100 files/sec | Varies | Language-dependent |
 | Chunk Extraction | ~500 chunks/sec | <10ms/chunk | In-memory operation |
-| Embedding Generation | ~45/sec (Modal) | ~50ms/batch | GPU-bound |
+| Embedding Generation | Varies | Varies | DeepInfra API rate limits, 4 concurrent requests |
 | Vector Upsert | ~100-500/sec | <5ms/batch | Network + index update |
 | Search Query | ~5-10ms | <200ms total | Including embedding gen |
 

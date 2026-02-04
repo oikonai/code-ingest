@@ -2,7 +2,7 @@
 """
 Vector Database Collection Manager
 
-CLI tool for managing Qdrant collections: cleanup, status, and creation.
+CLI tool for managing SurrealDB collections: cleanup, status, and creation.
 Replaces verbose inline Python scripts in GitHub Actions workflows.
 
 Following CLAUDE.md: <500 lines, single responsibility (collection management only).
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 class CollectionManager:
     """
-    Manages Qdrant vector database collections.
+    Manages SurrealDB vector database collections.
     
     Features:
     - Clean/recreate all collections
@@ -119,7 +119,7 @@ class CollectionManager:
                 # Extract language from collection name
                 lang = collection_name.split('_')[-1]
                 
-                # Handle both Qdrant and SurrealDB response formats
+                # Extract stats from SurrealDB response format
                 vectors_count = info.get('vectors_count', info.get('points_count', 0))
                 indexed_count = info.get('indexed_vectors_count', vectors_count)
                 status = info.get('status', 'unknown')
@@ -228,7 +228,7 @@ class CollectionManager:
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description='Manage Qdrant vector database collections'
+        description='Manage SurrealDB vector database collections'
     )
     
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
@@ -277,7 +277,7 @@ def main():
         manager = CollectionManager()
     except Exception as e:
         logger.error(f"❌ Failed to initialize collection manager: {e}")
-        logger.error("   Check QDRANT_URL and QDRANT_API_KEY environment variables")
+        logger.error("   Check SURREALDB_URL and related SurrealDB environment variables")
         sys.exit(1)
     
     # Execute command
