@@ -223,6 +223,10 @@ repositories:
     priority: high
 ```
 
+**Minimal entries:** Only `github_url` is required per repository. Omitted fields are defaulted: `id` = repo name from URL, `repo_type` = backend, `languages` = [rust, yaml], `components` = [.], `priority` = medium. Use minimal entries when learning about a new repo.
+
+**Optional discovery:** After cloning, run `make discover-repos` (or `python modules/ingest/scripts/repo_discovery.py`). This scans each cloned repo and writes `config/repositories-discovered.yaml` with `has_helm`, `helm_path`, `languages`, and `repo_type`. The loader merges this file when present: for each repo id, overlay only the keys present in the discovered file (user-set values in base YAML are not overwritten). Discovery module: `modules/ingest/core/repo_discovery.py` (`RepoDiscovery.discover()`). Override path via `REPOSITORIES_DISCOVERED_CONFIG`.
+
 **RepositoryConfig** (Legacy format for backward compatibility):
 ```python
 @dataclass

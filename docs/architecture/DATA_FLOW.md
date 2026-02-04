@@ -22,6 +22,13 @@ This document traces the complete journey of code through the ingestion system, 
 │    Source: config/repositories.yaml (or REPOSITORIES_CONFIG env) │
 │    Loader: modules.ingest.core.repository_loader           │
 │                                                             │
+│    Only github_url required per repo (minimal entries).     │
+│    Optional overlay files (merged when present):             │
+│    - config/repositories-discovered.yaml (has_helm,         │
+│      helm_path, languages, repo_type from disk scan)        │
+│    - config/repositories-relationships.yaml                  │
+│      (service_dependencies from YAML/Helm analysis)          │
+│                                                             │
 │    repositories:                                            │
 │      - id: my-backend                                       │
 │        github_url: https://github.com/myorg/my-backend      │
@@ -53,6 +60,16 @@ This document traces the complete journey of code through the ingestion system, 
                      ▼
                 [Ingestion Pipeline]
 ```
+
+### Derived metadata (optional)
+
+Two optional steps enrich repository config without editing `repositories.yaml`:
+
+**Discovery (run after clone):** `make discover-repos` or `python modules/ingest/scripts/repo_discovery.py`. Scans each cloned repo on disk and writes `config/repositories-discovered.yaml` with `has_helm`, `helm_path`, `languages`, and `repo_type`. The loader merges this file when present; user-set values in base YAML are not overwritten. Override path: `REPOSITORIES_DISCOVERED_CONFIG`.
+
+**Relationship derivation (run after ingest):** `make derive-dependencies` or `python modules/ingest/scripts/derive_dependencies.py`. Scans YAML/Helm files in each repo, runs `DependencyAnalyzer`, and writes `config/repositories-relationships.yaml` with per-repo `service_dependencies`. The loader merges it when present; if a repo already has `service_dependencies` in base YAML, that list is kept (user override wins). Override path: `REPOSITORIES_RELATIONSHIPS_CONFIG`.
+
+Typical order: clone → (optional) discover-repos → ingest → (optional) derive-dependencies. On the next load, `REPOSITORIES` will include discovered and derived fields.
 
 ### Phase 2: Pipeline Initialization
 

@@ -145,9 +145,19 @@ def _validate_priority(priority_str: str, repo_id: str) -> str:
     return priority_str
 
 
+def _derive_repo_id_from_url(github_url: str) -> str:
+    """Derive repo id (name) from GitHub URL. Last path segment, no trailing slash."""
+    if not github_url or 'github.com' not in github_url:
+        return ''
+    return (github_url.rstrip('/').split('/')[-1] or '')
+
+
 def _build_repo_config(repo_data: Dict[str, Any]) -> RepoConfig:
     """
     Build a RepoConfig object from YAML data.
+
+    Only github_url is required. id, repo_type, languages, components, and priority
+    are derived or defaulted when missing (minimal entry support).
     
     Args:
         repo_data: Dictionary from YAML for a single repository
@@ -158,50 +168,55 @@ def _build_repo_config(repo_data: Dict[str, Any]) -> RepoConfig:
     Raises:
         ValueError: If required fields are missing or invalid
     """
-    # Extract and validate required fields
+    github_url = repo_data.get('github_url')
+    if not github_url or not isinstance(github_url, str):
+        raise ValueError("Repository missing required field: 'github_url'")
+    if 'github.com' not in github_url:
+        raise ValueError(
+            f"Repository 'github_url' must be a GitHub URL (got: {github_url[:50]}...)"
+        )
+    path_segments = github_url.rstrip('/').split('/')
+    if not path_segments or not path_segments[-1]:
+        raise ValueError(
+            f"Repository 'github_url' must include repo name in path (got: {github_url})"
+        )
+
     repo_id = repo_data.get('id')
     if not repo_id:
-        raise ValueError("Repository missing required field: 'id'")
-    
-    github_url = repo_data.get('github_url')
-    if not github_url:
-        raise ValueError(f"Repository '{repo_id}' missing required field: 'github_url'")
-    
+        repo_id = _derive_repo_id_from_url(github_url)
+    if not repo_id:
+        raise ValueError("Could not derive repository id from 'github_url'")
+
     repo_type_str = repo_data.get('repo_type')
-    if not repo_type_str:
-        raise ValueError(f"Repository '{repo_id}' missing required field: 'repo_type'")
-    
+    if repo_type_str:
+        repo_type = _validate_repo_type(repo_type_str, repo_id)
+    else:
+        repo_type = RepoType.BACKEND
+
     language_strs = repo_data.get('languages')
-    if not language_strs or not isinstance(language_strs, list):
-        raise ValueError(
-            f"Repository '{repo_id}' missing or invalid required field: 'languages' "
-            "(must be a list)"
-        )
-    
+    if language_strs and isinstance(language_strs, list):
+        languages = _validate_languages(language_strs, repo_id)
+    else:
+        languages = [Language.RUST, Language.YAML]
+
     components = repo_data.get('components')
     if not components or not isinstance(components, list):
-        raise ValueError(
-            f"Repository '{repo_id}' missing or invalid required field: 'components' "
-            "(must be a list)"
-        )
-    
+        components = ['.']
+    else:
+        components = list(components)
+
     priority_str = repo_data.get('priority')
-    if not priority_str:
-        raise ValueError(f"Repository '{repo_id}' missing required field: 'priority'")
-    
-    # Validate and convert enums
-    repo_type = _validate_repo_type(repo_type_str, repo_id)
-    languages = _validate_languages(language_strs, repo_id)
-    priority = _validate_priority(priority_str, repo_id)
-    
-    # Extract optional fields
+    if priority_str:
+        priority = _validate_priority(priority_str, repo_id)
+    else:
+        priority = PRIORITY_MEDIUM
+
     has_helm = repo_data.get('has_helm', False)
     helm_path = repo_data.get('helm_path')
     service_dependencies = repo_data.get('service_dependencies', [])
     exposes_apis = repo_data.get('exposes_apis', False)
     api_base_path = repo_data.get('api_base_path')
-    
-    # Build RepoConfig
+
     return RepoConfig(
         github_url=github_url,
         repo_type=repo_type,
@@ -288,25 +303,145 @@ def load_repositories(
                 f"Invalid repository entry at index {idx} in {config_file}: "
                 "expected a dictionary"
             )
-        
+        if not repo_data.get('github_url'):
+            raise ValueError(
+                f"Repository entry at index {idx} in {config_file} missing required 'github_url'"
+            )
+
         try:
+            repo_id = repo_data.get('id') or _derive_repo_id_from_url(
+                repo_data['github_url']
+            )
+            if not repo_id:
+                raise ValueError(
+                    f"Could not derive id from github_url at index {idx}"
+                )
+
             repo_config = _build_repo_config(repo_data)
-            repo_id = repo_data['id']
-            
-            # Check for duplicate IDs
+
             if repo_id in seen_ids:
                 raise ValueError(
                     f"Duplicate repository ID '{repo_id}' in {config_file}"
                 )
-            
             seen_ids.add(repo_id)
             repositories[repo_id] = repo_config
-            
+
         except (ValueError, KeyError) as e:
             raise ValueError(
                 f"Error loading repository at index {idx} in {config_file}: {e}"
             )
-    
+
+    repositories = _merge_discovered_config(repositories, config_file)
+    repositories = _merge_relationships_config(repositories, config_file)
+
     logger.info(f"✅ Loaded {len(repositories)} repositories from {config_file}")
     
     return repositories, repos_base_dir
+
+
+def _resolve_discovered_path(base_config_file: Path) -> Path:
+    """Resolve path to repositories-discovered.yaml. Env REPOSITORIES_DISCOVERED_CONFIG overrides."""
+    env_path = os.getenv('REPOSITORIES_DISCOVERED_CONFIG')
+    if env_path:
+        return Path(env_path)
+    return base_config_file.parent / 'repositories-discovered.yaml'
+
+
+def _merge_discovered_config(
+    repositories: Dict[str, RepoConfig], base_config_file: Path
+) -> Dict[str, RepoConfig]:
+    """Overlay discovered config (has_helm, helm_path, languages, repo_type) when file exists."""
+    discovered_path = _resolve_discovered_path(base_config_file)
+    if not discovered_path.exists():
+        return repositories
+
+    try:
+        with open(discovered_path, 'r') as f:
+            data = yaml.safe_load(f)
+    except (yaml.YAMLError, OSError) as e:
+        logger.warning(f"Could not load discovered config {discovered_path}: {e}")
+        return repositories
+
+    if not data or not isinstance(data, dict):
+        return repositories
+    repos_overlay = data.get('repos') or data.get('repositories')
+    if not repos_overlay or not isinstance(repos_overlay, dict):
+        return repositories
+
+    logger.info(f"📖 Merging discovered config from {discovered_path}")
+    result = {}
+    for repo_id, config in repositories.items():
+        over = repos_overlay.get(repo_id) if isinstance(repos_overlay.get(repo_id), dict) else None
+        if not over:
+            result[repo_id] = config
+            continue
+        repo_type = _validate_repo_type(over['repo_type'], repo_id) if 'repo_type' in over else config.repo_type
+        languages = _validate_languages(over['languages'], repo_id) if 'languages' in over else config.languages
+        has_helm = over['has_helm'] if 'has_helm' in over else config.has_helm
+        helm_path = over['helm_path'] if 'helm_path' in over else config.helm_path
+        result[repo_id] = RepoConfig(
+            github_url=config.github_url,
+            repo_type=repo_type,
+            languages=languages,
+            components=config.components,
+            has_helm=has_helm,
+            helm_path=helm_path,
+            service_dependencies=config.service_dependencies,
+            exposes_apis=config.exposes_apis,
+            api_base_path=config.api_base_path,
+            priority=config.priority,
+        )
+    return result
+
+
+def _resolve_relationships_path(base_config_file: Path) -> Path:
+    """Resolve path to repositories-relationships.yaml. Env REPOSITORIES_RELATIONSHIPS_CONFIG overrides."""
+    env_path = os.getenv('REPOSITORIES_RELATIONSHIPS_CONFIG')
+    if env_path:
+        return Path(env_path)
+    return base_config_file.parent / 'repositories-relationships.yaml'
+
+
+def _merge_relationships_config(
+    repositories: Dict[str, RepoConfig], base_config_file: Path
+) -> Dict[str, RepoConfig]:
+    """Overlay service_dependencies from relationships file when present. User-set deps in base win."""
+    rel_path = _resolve_relationships_path(base_config_file)
+    if not rel_path.exists():
+        return repositories
+
+    try:
+        with open(rel_path, 'r') as f:
+            data = yaml.safe_load(f)
+    except (yaml.YAMLError, OSError) as e:
+        logger.warning(f"Could not load relationships config {rel_path}: {e}")
+        return repositories
+
+    if not data or not isinstance(data, dict):
+        return repositories
+    repos_overlay = data.get('repos') or data.get('repositories')
+    if not repos_overlay or not isinstance(repos_overlay, dict):
+        return repositories
+
+    logger.info(f"📖 Merging relationships from {rel_path}")
+    result = {}
+    for repo_id, config in repositories.items():
+        over = repos_overlay.get(repo_id) if isinstance(repos_overlay.get(repo_id), dict) else None
+        if not over or 'service_dependencies' not in over:
+            result[repo_id] = config
+            continue
+        # User override wins: only use derived when base did not set service_dependencies
+        use_deps = config.service_dependencies if config.service_dependencies else (over.get('service_dependencies') or [])
+        result[repo_id] = RepoConfig(
+            github_url=config.github_url,
+            repo_type=config.repo_type,
+            languages=config.languages,
+            components=config.components,
+            has_helm=config.has_helm,
+            helm_path=config.helm_path,
+            service_dependencies=use_deps,
+            exposes_apis=config.exposes_apis,
+            api_base_path=config.api_base_path,
+            priority=config.priority,
+        )
+    return result

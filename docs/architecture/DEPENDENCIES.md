@@ -152,6 +152,37 @@ modules/ingest/core/pipeline.py (IngestionPipeline)
 └── External: Git repository state
 ```
 
+**Repository Discovery** (`modules/ingest/scripts/repo_discovery.py`)
+```
+├── modules/ingest/core/repository_loader → load_repositories, _resolve_config_path, _resolve_discovered_path
+├── modules/ingest/core/repo_discovery → RepoDiscovery
+└── Writes: config/repositories-discovered.yaml
+```
+
+**Derive Dependencies** (`modules/ingest/scripts/derive_dependencies.py`)
+```
+├── modules/ingest/core/repository_loader → load_repositories, _resolve_config_path, _resolve_relationships_path
+├── modules/ingest/parsers/yaml_parser → YAMLParser
+├── modules/ingest/analysis/dependency_analyzer → DependencyAnalyzer
+└── Writes: config/repositories-relationships.yaml
+```
+
+**RepoDiscovery** (`modules/ingest/core/repo_discovery.py`)
+```
+├── pathlib → Path, rglob
+├── modules/ingest/core/config → RepoType, Language
+└── No disk write; returns dict for discovered config
+```
+
+**Repository Loader** (merge behavior)
+```
+modules/ingest/core/repository_loader
+├── Loads config/repositories.yaml (only github_url required per repo)
+├── Optionally merges config/repositories-discovered.yaml (has_helm, helm_path, languages, repo_type)
+├── Optionally merges config/repositories-relationships.yaml (service_dependencies; user-set in base wins)
+└── modules/ingest/core/config → RepoConfig, RepoType, Language
+```
+
 **Search Test** (`modules/ingest/scripts/search_test.py`)
 ```
 ├── modules.ingest → IngestionPipeline

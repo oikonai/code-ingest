@@ -1,7 +1,7 @@
 # Code Ingestion System - Multi-Language Vector Database Pipeline
 # Comprehensive Makefile for ingestion capabilities
 
-.PHONY: help install deps setup venv sync test clean ingest ingest-warmup ingest-search vector-status index-check clone-repos clone-repos-medium clone-repos-all collection-cleanup collection-status repo-metadata stats-report health check-env status info
+.PHONY: help install deps setup venv sync test clean ingest ingest-warmup ingest-search vector-status index-check clone-repos clone-repos-medium clone-repos-all discover-repos derive-dependencies collection-cleanup collection-status repo-metadata stats-report health check-env status info
 
 # Colors for better readability
 YELLOW := \033[33m
@@ -31,6 +31,8 @@ help:
 	@echo "  make clone-repos      Clone high-priority repos only (~10 repos)"
 	@echo "  make clone-repos-medium  Clone medium+high priority repos (~16 repos)"
 	@echo "  make clone-repos-all  Clone ALL 25 configured repositories"
+	@echo "  make discover-repos   Scan cloned repos and write repositories-discovered.yaml"
+	@echo "  make derive-dependencies   Derive service_dependencies and write repositories-relationships.yaml"
 	@echo "  make collection-cleanup   Clean/recreate all vector collections"
 	@echo "  make collection-status    Get detailed collection statistics"
 	@echo "  make repo-metadata        Capture repository commit metadata"
@@ -134,6 +136,16 @@ clone-repos-medium:
 clone-repos-all:
 	@echo "$(GREEN)🔄 Cloning ALL configured repositories...$(RESET)"
 	@python modules/ingest/scripts/repo_cloner.py --min-priority ALL
+
+discover-repos:
+	@echo "$(GREEN)🔍 Discovering repo metadata (Helm, languages, repo type)...$(RESET)"
+	@python modules/ingest/scripts/repo_discovery.py
+	@echo "$(GREEN)✅ Wrote config/repositories-discovered.yaml$(RESET)"
+
+derive-dependencies:
+	@echo "$(GREEN)🔗 Deriving service_dependencies from YAML/Helm...$(RESET)"
+	@python modules/ingest/scripts/derive_dependencies.py
+	@echo "$(GREEN)✅ Wrote config/repositories-relationships.yaml$(RESET)"
 
 collection-cleanup:
 	@echo "$(YELLOW)🗑️  Cleaning all vector collections...$(RESET)"

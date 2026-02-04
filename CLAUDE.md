@@ -214,6 +214,8 @@ class IngestionConfig:
 
 **Key principles:**
 - Never hard-code repository lists in Python - use config/repositories.yaml
+- Only `github_url` is required per entry; id, repo_type, languages, components, priority are defaulted (minimal entry support)
+- Optional discovery step can fill in Helm, languages, and repo type after cloning; see docs
 - Environment variable `REPOSITORIES_CONFIG` can override config file path
 - Loader validates config schema and provides clear error messages
 

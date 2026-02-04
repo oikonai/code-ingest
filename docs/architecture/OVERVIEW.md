@@ -121,6 +121,10 @@ Command-line scripts for repository and collection management.
 - `repo_metadata.py` - Capture repository commit metadata
 - `search_test.py` - Test vector search functionality
 
+### 6. **Repository configuration** (`config/repositories.yaml`)
+
+Only **`github_url`** is required per repository. When other fields are omitted they are defaulted: **id** = repo name from URL, **repo_type** = backend, **languages** = [rust, yaml], **components** = [.], **priority** = medium. Optional fields (id, repo_type, languages, components, priority, has_helm, helm_path, service_dependencies, exposes_apis, api_base_path) provide better context for search and collection assignment when known.
+
 ## Data Flow
 
 ### Complete Ingestion Lifecycle

@@ -189,7 +189,49 @@ class DependencyAnalyzer:
                 # Analyze API endpoints from metadata
                 elif hasattr(item, 'api_endpoints') and item.api_endpoints:
                     self.service_mesh[repo_id]["endpoints"].extend(item.api_endpoints)
-    
+
+    def _normalize_service_name(self, name: str) -> str:
+        """Normalize env-style name to repo-id style (e.g. credit_service_url -> credit-service)."""
+        s = name.strip().lower()
+        for suffix in ('_url', '_host', '_endpoint', '_service'):
+            if s.endswith(suffix):
+                s = s[:-len(suffix)]
+                break
+        return s.replace('_', '-')
+
+    def get_derived_service_dependencies(self) -> Dict[str, List[str]]:
+        """
+        Derive per-repo service_dependencies from analyzed data (service mesh, API calls).
+        Call after analyze_all_dependencies(). Returns dict repo_id -> list of dependency names.
+        """
+        known_repo_ids = set(self.all_repo_data.keys())
+        result: Dict[str, List[str]] = {}
+
+        for repo_id in known_repo_ids:
+            deps: Set[str] = set()
+
+            # From service mesh (Helm/K8s env vars)
+            mesh = self.service_mesh.get(repo_id, {})
+            for dep in mesh.get("dependencies", []):
+                normalized = self._normalize_service_name(dep)
+                if normalized:
+                    deps.add(normalized)
+
+            # From API call URLs: if URL path contains a known repo id, add it
+            api_calls = self.api_call_graph.get(repo_id, {}).get("calls", [])
+            for call in api_calls:
+                url = (call.get("url") or "").lower()
+                for other_id in known_repo_ids:
+                    if other_id == repo_id:
+                        continue
+                    if other_id in url or other_id.replace("-", "_") in url:
+                        deps.add(other_id)
+                        break
+
+            result[repo_id] = sorted(deps)
+
+        return result
+
     def _analyze_package_json(self, content: str) -> List[str]:
         """Extract dependencies from package.json."""
         try:
