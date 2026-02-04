@@ -54,12 +54,18 @@ class Language(Enum):
 
 
 # ===== COLLECTIONS CONFIGURATION LOADING =====
+def _apply_prefix(prefix: Optional[str], suffix: str) -> str:
+    """Build full collection name from prefix and suffix. No prefix => suffix as-is."""
+    if prefix and prefix.strip():
+        return f"{prefix.strip()}_{suffix}"
+    return suffix
+
+
 def _load_collections_from_yaml() -> Optional[Dict[str, Dict[str, str]]]:
     """
     Load collection mappings from config/collections.yaml.
-    
-    Returns:
-        Dict with 'language', 'service', 'concern' keys, or None if file not found/error
+    YAML values are suffixes; prefix (collection_prefix) is applied to produce full names.
+    Returns dict with key -> full collection name for language, service, concern.
     """
     try:
         # Check COLLECTIONS_CONFIG env var first
@@ -82,11 +88,20 @@ def _load_collections_from_yaml() -> Optional[Dict[str, Dict[str, str]]]:
             logger.warning(f"Collections config at {config_path} is empty, using defaults")
             return None
         
+        prefix = (data.get('collection_prefix') or '').strip() or None
+        
+        def apply(suffix: str) -> str:
+            return _apply_prefix(prefix, suffix)
+        
+        raw_lang = data.get('language_collections', {})
+        raw_svc = data.get('service_collections', {})
+        raw_concern = data.get('concern_collections', {})
+        
         result = {
-            'language': data.get('language_collections', {}),
-            'service': data.get('service_collections', {}),
-            'concern': data.get('concern_collections', {}),
-            'default': data.get('default_collection')
+            'language': {k: apply(v) for k, v in raw_lang.items() if v},
+            'service': {k: apply(v) for k, v in raw_svc.items() if v},
+            'concern': {k: apply(v) for k, v in raw_concern.items() if v},
+            'default': apply(data['default_collection']) if data.get('default_collection') else None
         }
         
         logger.info(f"✅ Loaded collections config from {config_path}")

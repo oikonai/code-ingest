@@ -14,6 +14,13 @@ from typing import Dict, Optional
 logger = logging.getLogger(__name__)
 
 
+def _apply_prefix(prefix: Optional[str], suffix: str) -> str:
+    """Build full collection name from prefix and suffix. No prefix => suffix as-is."""
+    if prefix and str(prefix).strip():
+        return f"{str(prefix).strip()}_{suffix}"
+    return suffix
+
+
 def load_collections_config() -> Dict:
     """
     Load collections configuration from config/collections.yaml.
@@ -58,12 +65,24 @@ def load_collections_config() -> Dict:
                 'default': None
             }
         
+        prefix = (data.get('collection_prefix') or '') or None
+        if prefix is not None:
+            prefix = str(prefix).strip() or None
+        
+        def apply(suffix: str) -> str:
+            return _apply_prefix(prefix, suffix)
+        
+        raw_lang = data.get('language_collections', {})
+        raw_svc = data.get('service_collections', {})
+        raw_concern = data.get('concern_collections', {})
+        raw_aliases = data.get('aliases', {})
+        
         result = {
-            'language': data.get('language_collections', {}),
-            'service': data.get('service_collections', {}),
-            'concern': data.get('concern_collections', {}),
-            'aliases': data.get('aliases', {}),
-            'default': data.get('default_collection'),
+            'language': {k: apply(v) for k, v in raw_lang.items() if v},
+            'service': {k: apply(v) for k, v in raw_svc.items() if v},
+            'concern': {k: apply(v) for k, v in raw_concern.items() if v},
+            'aliases': {k: apply(v) for k, v in raw_aliases.items() if v},
+            'default': apply(data['default_collection']) if data.get('default_collection') else None,
             'prefix': data.get('collection_prefix')
         }
         

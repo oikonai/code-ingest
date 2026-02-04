@@ -62,12 +62,12 @@ Collection names are defined in `config/collections.yaml` (shared with the inges
 
 4. **Configure collections** (optional):
    
-   If you want custom collection names, edit `../config/collections.yaml`:
+   If you want custom collection names, edit `../config/collections.yaml` (values are suffixes; prefix is applied automatically):
    ```yaml
    collection_prefix: myproject
    language_collections:
-     rust: myproject_code_rust
-     typescript: myproject_code_typescript
+     rust: code_rust
+     typescript: code_typescript
    # ...
    ```
 
@@ -91,28 +91,28 @@ Collection names are defined in `config/collections.yaml` (shared with the inges
 
 ### Collections Config
 
-The `config/collections.yaml` file defines collection names and aliases. This file is shared between the ingestion pipeline and MCP server:
+The `config/collections.yaml` file defines collection names and aliases. This file is shared between the ingestion pipeline and MCP server. Set `collection_prefix` once; all other values are **suffixes** (e.g. `code_rust`, `frontend`). Full names are built as `{prefix}_{suffix}`.
 
 ```yaml
-collection_prefix: myproject  # Customize for your org
+collection_prefix: myproject  # Customize for your org; leave empty for no prefix
 
 language_collections:
-  rust: myproject_code_rust
-  typescript: myproject_code_typescript
-  python: myproject_code_python
+  rust: code_rust
+  typescript: code_typescript
+  python: code_python
   # ...
 
 service_collections:
-  frontend: myproject_frontend
-  backend: myproject_backend
+  frontend: frontend
+  backend: backend
   # ...
 
 aliases:
-  rust: myproject_code_rust
-  ts: myproject_code_typescript
+  rust: code_rust
+  ts: code_typescript
   # ...
 
-default_collection: myproject_code_rust
+default_collection: code_rust  # suffix
 ```
 
 **Why share this config?** The ingestion pipeline writes to these collections; the MCP server searches them. Keeping them in sync prevents "collection not found" errors.

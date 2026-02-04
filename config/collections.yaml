@@ -1,7 +1,7 @@
 # Collections Configuration
-# 
+#
 # CUSTOMIZE THIS FILE FOR YOUR PROJECT/ORGANIZATION
-# 
+#
 # This file defines vector database collection names and aliases used by both
 # the ingestion pipeline (writing) and MCP server (searching).
 #
@@ -10,73 +10,77 @@
 #
 # Both ingestion (modules/ingest) and MCP server (mcp/) read this file.
 # Override path with COLLECTIONS_CONFIG environment variable if needed.
+#
+# Values are SUFFIXES only. The collection_prefix below is applied once to
+# produce full names (e.g. prefix "arda" + suffix "code_rust" -> arda_code_rust).
+# If you migrate from an old file that had full names in every value, strip the
+# prefix from each value and set collection_prefix at the top.
 
-# Optional prefix for collection names (example: "arda" -> arda_code_rust)
-# CUSTOMIZE: Set to your project/org name, or leave empty for no prefix
-# Example without prefix: collection_prefix: "" gives you "code_rust" instead of "arda_code_rust"
+# Optional prefix for collection names (e.g. "arda" -> arda_code_rust).
+# CUSTOMIZE: Set to your project/org name, or leave empty for no prefix.
+# With empty prefix, collection names are the suffix as-is (e.g. code_rust).
 collection_prefix: arda  # Example value - replace with your prefix
 
-# BY_LANGUAGE: Maps programming languages to collection names
-# Ingest writes code chunks here; MCP uses for search defaults
+# BY_LANGUAGE: Maps programming languages to collection name SUFFIXES
 language_collections:
-  rust: arda_code_rust
-  typescript: arda_code_typescript
-  javascript: arda_code_typescript  # Same as TypeScript
-  jsx: arda_code_typescript          # Same as TypeScript
-  tsx: arda_code_typescript          # Same as TypeScript
-  python: arda_code_python
-  solidity: arda_code_solidity
-  documentation: arda_documentation
-  yaml: arda_code_yaml
-  helm: arda_code_yaml               # Helm charts use YAML collection
-  terraform: arda_code_terraform
-  infrastructure: arda_infrastructure
-  cicd: arda_cicd
-  mixed: arda_code_mixed             # Cross-language semantic search
+  rust: code_rust
+  typescript: code_typescript
+  javascript: code_typescript  # Same as TypeScript
+  jsx: code_typescript
+  tsx: code_typescript
+  python: code_python
+  solidity: code_solidity
+  documentation: documentation
+  yaml: code_yaml
+  helm: code_yaml               # Helm charts use YAML collection
+  terraform: code_terraform
+  infrastructure: infrastructure
+  cicd: cicd
+  mixed: code_mixed             # Cross-language semantic search
 
-# BY_SERVICE: Maps repository types to service-oriented collections
+# BY_SERVICE: Maps repository types to collection name SUFFIXES
 service_collections:
-  frontend: arda_frontend
-  backend: arda_backend
-  middleware: arda_middleware
-  mcp_server: arda_middleware        # MCP servers are middleware
-  infrastructure: arda_infrastructure
-  tool: arda_infrastructure          # Tools are infrastructure
-  documentation: arda_documentation
+  frontend: frontend
+  backend: backend
+  middleware: middleware
+  mcp_server: middleware        # MCP servers are middleware
+  infrastructure: infrastructure
+  tool: infrastructure         # Tools are infrastructure
+  documentation: documentation
 
-# BY_CONCERN: Maps architectural concerns to specialized collections
+# BY_CONCERN: Maps architectural concerns to collection name SUFFIXES
 concern_collections:
-  api_contracts: arda_api_contracts
-  database_schemas: arda_database_schemas
-  config: arda_config
-  deployment: arda_deployment
+  api_contracts: api_contracts
+  database_schemas: database_schemas
+  config: config
+  deployment: deployment
 
-# Aliases: Short names for MCP tool usage (e.g. "rust" -> arda_code_rust)
+# Aliases: Short names for MCP tool usage. Values are SUFFIXES (e.g. "rust" -> code_rust)
 aliases:
-  rust: arda_code_rust
-  ts: arda_code_typescript
-  typescript: arda_code_typescript
-  js: arda_code_typescript
-  python: arda_code_python
-  py: arda_code_python
-  sol: arda_code_solidity
-  solidity: arda_code_solidity
-  yaml: arda_code_yaml
-  tf: arda_code_terraform
-  terraform: arda_code_terraform
-  docs: arda_documentation
-  documentation: arda_documentation
-  frontend: arda_frontend
-  backend: arda_backend
-  middleware: arda_middleware
-  infra: arda_infrastructure
-  infrastructure: arda_infrastructure
-  api: arda_api_contracts
-  db: arda_database_schemas
-  database: arda_database_schemas
-  config: arda_config
-  deployment: arda_deployment
-  deploy: arda_deployment
+  rust: code_rust
+  ts: code_typescript
+  typescript: code_typescript
+  js: code_typescript
+  python: code_python
+  py: code_python
+  sol: code_solidity
+  solidity: code_solidity
+  yaml: code_yaml
+  tf: code_terraform
+  terraform: code_terraform
+  docs: documentation
+  documentation: documentation
+  frontend: frontend
+  backend: backend
+  middleware: middleware
+  infra: infrastructure
+  infrastructure: infrastructure
+  api: api_contracts
+  db: database_schemas
+  database: database_schemas
+  config: config
+  deployment: deployment
+  deploy: deployment
 
-# Default collection for MCP search when no collection specified
-default_collection: arda_code_rust
+# Default collection for MCP search when no collection specified (SUFFIX)
+default_collection: code_rust

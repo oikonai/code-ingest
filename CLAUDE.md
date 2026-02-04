@@ -223,32 +223,36 @@ class IngestionConfig:
 
 **Purpose:** Single source of truth for collection names. The ingestion pipeline writes to these collections; the MCP server searches them. Keeping them in sync ensures search works correctly.
 
+**Format:** Set `collection_prefix` once (e.g. `myproject`). All other values are **suffixes only**; loaders build full names as `{prefix}_{suffix}` (or just `suffix` when prefix is empty). This avoids repeating the prefix in every entry.
+
 **Structure:**
 ```yaml
-collection_prefix: myproject  # Optional
+collection_prefix: myproject  # Optional; leave empty for no prefix
 
 language_collections:
-  rust: myproject_code_rust
-  typescript: myproject_code_typescript
+  rust: code_rust
+  typescript: code_typescript
   # ...
 
 service_collections:
-  frontend: myproject_frontend
-  backend: myproject_backend
+  frontend: frontend
+  backend: backend
   # ...
 
 concern_collections:
-  api_contracts: myproject_api_contracts
-  database_schemas: myproject_database_schemas
+  api_contracts: api_contracts
+  database_schemas: database_schemas
   # ...
 
 aliases:
-  rust: myproject_code_rust
-  ts: myproject_code_typescript
+  rust: code_rust
+  ts: code_typescript
   # ...
 
-default_collection: myproject_code_rust
+default_collection: code_rust  # suffix
 ```
+
+**Migration:** If you have an existing file with full names in every value (e.g. `rust: myproject_code_rust`), strip the prefix from each value and set `collection_prefix: myproject` at the top.
 
 **Usage:**
 - **Ingest:** `modules/ingest/core/config.py` loads this file to determine collection names when storing vectors

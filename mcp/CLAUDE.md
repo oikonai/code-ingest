@@ -46,36 +46,38 @@ GHCR_TOKEN=your_github_token
 
 **Purpose:** Single source of truth for collection names. Ingestion writes to these collections; MCP searches them.
 
+**Format:** Set `collection_prefix` once (e.g. `myproject`). All other values are **suffixes only**; the loader builds full names as `{prefix}_{suffix}` (or just `suffix` when prefix is empty).
+
 **Structure:**
 
 ```yaml
-collection_prefix: myproject  # Optional
+collection_prefix: myproject  # Optional; leave empty for no prefix
 
 language_collections:
-  rust: myproject_code_rust
-  typescript: myproject_code_typescript
-  python: myproject_code_python
+  rust: code_rust
+  typescript: code_typescript
+  python: code_python
   # ...
 
 service_collections:
-  frontend: myproject_frontend
-  backend: myproject_backend
-  middleware: myproject_middleware
+  frontend: frontend
+  backend: backend
+  middleware: middleware
   # ...
 
 concern_collections:
-  api_contracts: myproject_api_contracts
-  database_schemas: myproject_database_schemas
-  config: myproject_config
-  deployment: myproject_deployment
+  api_contracts: api_contracts
+  database_schemas: database_schemas
+  config: config
+  deployment: deployment
 
 aliases:
-  rust: myproject_code_rust
-  ts: myproject_code_typescript
-  backend: myproject_backend
+  rust: code_rust
+  ts: code_typescript
+  backend: backend
   # ...
 
-default_collection: myproject_code_rust
+default_collection: code_rust  # suffix
 ```
 
 **Loading Logic:**
@@ -242,10 +244,10 @@ cross_collection_search(
 
 ### Adding New Collections
 
-1. Update `config/collections.yaml`:
+1. Update `config/collections.yaml` (use suffix only; prefix is applied automatically):
    ```yaml
    language_collections:
-     go: myproject_code_go  # New language
+     go: code_go  # New language
    ```
 
 2. Ingest code to that collection (ingestion pipeline will use same config)
