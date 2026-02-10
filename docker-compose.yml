@@ -44,6 +44,9 @@ services:
       
       # Optional: Priority filter for ingestion
       - PRIORITY=${PRIORITY:-low}
+
+      # Logging level (DEBUG, INFO, WARNING, ERROR)
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./repos:/app/repos  # Mount repos directory
       - ./config:/app/config  # Mount config
@@ -79,6 +82,9 @@ services:
       - ENABLE_HEALTH_ENDPOINT=true
       - HEALTH_PORT=8001
       - MCP_HTTP_TRANSPORT=true
+      
+      # Logging level (DEBUG, INFO, WARNING, ERROR)
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./config:/app/config  # Mount config
       - ingest-status:/app/status:ro  # Read-only access to status
