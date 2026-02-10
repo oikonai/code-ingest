@@ -21,6 +21,7 @@ Architecture:
 
 import os
 import sys
+import time
 import logging
 import httpx
 import asyncio
@@ -31,6 +32,7 @@ from dotenv import load_dotenv
 # FastMCP framework
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError, ResourceError, NotFoundError
+from starlette.responses import JSONResponse
 
 # Import vector backend abstraction
 import sys
@@ -77,61 +79,6 @@ _query_cache: QueryCache = QueryCache(ttl_minutes=30, max_size=1000)
 
 
 # ============================================================================
-# Helper Functions
-# ============================================================================
-
-async def warmup_embedding_endpoint(base_url: str, deepinfra_key: str, model: str = 'Qwen/Qwen3-Embedding-8B-batch', timeout: float = 30.0) -> bool:
-    """
-    Pre-warm the embedding endpoint to avoid cold start delays.
-
-    This function sends a test query to wake up the endpoint before
-    actual requests are made.
-
-    Args:
-        base_url: DeepInfra API base URL
-        deepinfra_key: DeepInfra API key
-        model: Embedding model name
-        timeout: Maximum time to wait for warmup (default: 30s)
-
-    Returns:
-        True if warmup successful, False otherwise
-    """
-    logger.info("🔥 Warming up embedding endpoint...")
-    logger.info(f"   Base URL: {base_url[:60]}...")
-
-    try:
-        from openai import OpenAI
-        
-        client = OpenAI(
-            api_key=deepinfra_key,
-            base_url=base_url,
-            timeout=timeout
-        )
-        
-        response = client.embeddings.create(
-            model=model,
-            input=["warmup query"],
-            encoding_format="float"
-        )
-
-        # Check response
-        if response.data and len(response.data) > 0:
-            embedding = response.data[0].embedding
-            if len(embedding) > 0:
-                logger.info("✅ Embedding endpoint warmed up successfully")
-                return True
-        logger.warning("⚠️  Embedding endpoint responded but format unexpected")
-        return False
-
-    except asyncio.TimeoutError:
-        logger.warning(f"⚠️  Embedding endpoint warmup timed out after {timeout}s - endpoint may be cold")
-        return False
-    except Exception as e:
-        logger.error(f"❌ Embedding endpoint warmup failed: {e}")
-        return False
-
-
-# ============================================================================
 # Server Lifecycle
 # ============================================================================
 
@@ -144,7 +91,6 @@ async def lifespan(server: FastMCP):
     - Validates environment configuration
     - Initializes SurrealDB vector backend
     - Registers tools, prompts, and resources
-    - Pre-warms embedding endpoint
     - Cleans up connections on shutdown
     """
     global _vector_client, _embedding_endpoint, _cloudflare_api_token, _config
@@ -169,11 +115,6 @@ async def lifespan(server: FastMCP):
         register_all_features()
         logger.info("✅ All features registered successfully")
 
-        # Pre-warm embedding endpoint (runs in background)
-        embedding_warmup_task = asyncio.create_task(
-            warmup_embedding_endpoint(config['embedding_base_url'], config['deepinfra_api_key'], config['embedding_model'])
-        )
-
         logger.info("=" * 80)
         logger.info("✅ Server initialization complete")
         logger.info(f"📡 {SERVER_NAME} is ready to accept MCP connections")
@@ -186,19 +127,13 @@ async def lifespan(server: FastMCP):
             try:
                 from health_server import start_health_server
                 health_port = int(os.getenv('HEALTH_PORT', '8001'))
-                health_server = start_health_server(port=health_port)
+                start_health_server(port=health_port)
                 logger.info(f"🏥 Health endpoint available at http://0.0.0.0:{health_port}/health")
             except Exception as e:
                 logger.warning(f"⚠️  Failed to start health endpoint: {e}")
 
         # Yield control to server
         yield {"vector_client": vector_client, "embedding_endpoint": config['embedding_endpoint']}
-
-        # Wait for warmup task to complete before shutdown
-        try:
-            await asyncio.wait_for(embedding_warmup_task, timeout=35.0)
-        except asyncio.TimeoutError:
-            embedding_warmup_task.cancel()
 
     except ValueError as e:
         logger.error("=" * 80)
@@ -251,6 +186,72 @@ def _register_health_route():
         logger.warning("Could not register /health custom route: %s", e)
 
 
+def _register_debug_route():
+    """Register /debug/collections route for HTTP transport. Shows what collections MCP sees."""
+    if not hasattr(mcp, 'custom_route'):
+        return
+    try:
+        from starlette.requests import Request
+        from starlette.responses import JSONResponse
+
+        @mcp.custom_route("/debug/collections", methods=["GET"])
+        async def debug_collections(request: Request):
+            """Return list of collections and counts from the vector client.
+            Add ?raw=1 to include raw INFO FOR DB result (for debugging parsing)."""
+            global _vector_client
+            if not _vector_client:
+                return JSONResponse(
+                    {"error": "Vector client not initialized", "collections": [], "count": 0},
+                    status_code=503,
+                )
+            try:
+                raw_param = request.query_params.get("raw", "").lower() in ("1", "true", "yes")
+                names = _vector_client.get_collections()
+                details = []
+                for name in names:
+                    info = _vector_client.get_collection_info(name)
+                    points = 0
+                    if info:
+                        points = info.get("vectors_count", info.get("points_count", 0))
+                    details.append({"name": name, "points": points})
+                body = {"collections": details, "count": len(names), "backend": "surrealdb"}
+                if raw_param and hasattr(_vector_client, "client"):
+                    try:
+                        body["_client_url"] = getattr(_vector_client, "url", None)
+                        body["_client_namespace"] = getattr(_vector_client, "namespace", None)
+                        body["_client_database"] = getattr(_vector_client, "database", None)
+                        raw_result = _vector_client.client.query("INFO FOR DB;")
+                        body["_raw_info_type"] = type(raw_result).__name__
+                        if isinstance(raw_result, dict):
+                            body["_raw_info_keys"] = list(raw_result.keys())
+                            if "tables" in raw_result:
+                                tbls = raw_result["tables"]
+                                body["_raw_tables_type"] = type(tbls).__name__
+                                if isinstance(tbls, dict):
+                                    body["_raw_tables_keys"] = list(tbls.keys())[:20]
+                                elif isinstance(tbls, (list, tuple)):
+                                    body["_raw_tables_len"] = len(tbls)
+                                    body["_raw_tables_sample"] = list(tbls)[:5] if tbls else []
+                                elif tbls is not None:
+                                    body["_raw_tables_repr"] = str(tbls)[:200]
+                        elif isinstance(raw_result, (list, tuple)):
+                            body["_raw_info_len"] = len(raw_result)
+                            if len(raw_result) > 0:
+                                body["_raw_first_type"] = type(raw_result[0]).__name__
+                                if isinstance(raw_result[0], dict):
+                                    body["_raw_first_keys"] = list(raw_result[0].keys())
+                    except Exception as raw_err:
+                        body["_raw_error"] = str(raw_err)
+                return JSONResponse(body)
+            except Exception as e:
+                return JSONResponse(
+                    {"error": str(e), "collections": [], "count": 0},
+                    status_code=500,
+                )
+    except Exception as e:
+        logger.warning("Could not register /debug/collections custom route: %s", e)
+
+
 # ============================================================================
 # Module Registration
 # ============================================================================
@@ -286,7 +287,7 @@ def register_all_features():
         _vector_client,
         _config.get('deepinfra_api_key'),
         _config.get('embedding_base_url', 'https://api.deepinfra.com/v1/openai'),
-        _config.get('embedding_model', 'Qwen/Qwen3-Embedding-8B-batch'),
+        _config.get('embedding_model', 'Qwen/Qwen3-Embedding-8B'),
         _query_cache
     )
 
@@ -329,7 +330,7 @@ def validate_environment() -> Dict[str, Any]:
     
     # Optional: embedding endpoint override (defaults to DeepInfra)
     embedding_base_url = os.getenv('EMBEDDING_ENDPOINT', 'https://api.deepinfra.com/v1/openai')
-    embedding_model = os.getenv('EMBEDDING_MODEL', 'Qwen/Qwen3-Embedding-8B-batch')
+    embedding_model = os.getenv('EMBEDDING_MODEL', 'Qwen/Qwen3-Embedding-8B')
 
     if not surrealdb_url:
         raise ValueError(
@@ -429,6 +430,7 @@ def main():
 
     if use_http:
         _register_health_route()
+        _register_debug_route()
         logger.info(f"📡 MCP HTTP transport: http://0.0.0.0:{health_port}/mcp (Cursor: http://localhost:{health_port}/mcp)")
         mcp.run(transport="http", host="0.0.0.0", port=health_port)
     else:

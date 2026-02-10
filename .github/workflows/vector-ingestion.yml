@@ -87,7 +87,7 @@ jobs:
         run: |
           echo "✅ DeepInfra embedding service ready"
           echo "   Provider: DeepInfra"
-          echo "   Model: Qwen/Qwen3-Embedding-8B-batch (4096D)"
+          echo "   Model: Qwen/Qwen3-Embedding-8B (4096D)"
           echo "   Minimal cold starts - fast availability"
 
       - name: 📝 Capture Repository Metadata

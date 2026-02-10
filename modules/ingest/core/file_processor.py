@@ -146,7 +146,8 @@ class FileProcessor:
                 language_files['cicd'].append(path)
 
         # Log summary
-        logger.info(f"📊 Found files by language in {repo_path.name}:")
+        total = sum(len(f) for f in language_files.values())
+        logger.info(f"📊 Found files by language in {repo_path.name} (total={total}):")
         for lang, files in language_files.items():
             if files:
                 logger.info(f"  📄 {lang}: {len(files)} files")
@@ -171,6 +172,7 @@ class FileProcessor:
         }
 
         repo_id = repo_config.github_url.split('/')[-1]  # Extract repo name from URL
+        logger.info(f"📂 process_rust_files: {len(files)} files in {repo_id}")
         all_chunks = []
 
         # Load checkpoint to skip already-processed files
@@ -231,7 +233,8 @@ class FileProcessor:
 
         # Process and store embeddings in streaming batches with multi-collection support
         if all_chunks:
-            logger.info(f"📊 Processing {len(all_chunks)} Rust chunks for embedding")
+            num_chunks = len(all_chunks)
+            logger.info(f"📊 Rust: extracted {num_chunks} chunks from {len(processed_file_paths)} files, sending to embedding+storage")
             
             # Determine target collections for first chunk (all chunks from same repo have same collections)
             sample_chunk = all_chunks[0]
@@ -241,11 +244,13 @@ class FileProcessor:
                 language='rust'
             )
             
-            logger.info(f"🎯 Storing to collections: {', '.join(target_collections)}")
+            logger.info(f"🎯 Rust: storing to collections: {', '.join(target_collections)}")
             
             total_stored = self.batch_processor.stream_chunks_to_storage(
                 all_chunks, target_collections, 'rust'
             )
+
+            logger.info(f"✅ Rust: stored {total_stored}/{num_chunks} chunks for {repo_id}")
 
             # Track stats for all collections
             for collection in target_collections:
@@ -255,6 +260,8 @@ class FileProcessor:
             for chunk in all_chunks:
                 domain = chunk.metadata.get('business_domain', 'unknown')
                 stats['business_domains'][domain] = stats['business_domains'].get(domain, 0) + 1
+        else:
+            logger.info(f"📊 Rust: 0 chunks extracted from {repo_id} (parse errors or no content)")
 
         return stats
 
@@ -279,6 +286,7 @@ class FileProcessor:
         }
 
         repo_id = repo_config.github_url.split('/')[-1]
+        logger.info(f"📂 process_typescript_files: {len(files)} {language} files in {repo_id}")
         all_chunks = []
 
         # Load checkpoint
@@ -352,7 +360,8 @@ class FileProcessor:
                 stats['errors'].append(f"Error processing {file_path}: {e}")
 
         if all_chunks:
-            logger.info(f"📊 Processing {len(all_chunks)} {language} chunks for embedding")
+            num_chunks = len(all_chunks)
+            logger.info(f"📊 {language}: extracted {num_chunks} chunks, sending to embedding+storage")
             
             # Determine target collections
             sample_chunk = all_chunks[0]
@@ -362,11 +371,13 @@ class FileProcessor:
                 language=language
             )
             
-            logger.info(f"🎯 Storing to collections: {', '.join(target_collections)}")
+            logger.info(f"🎯 {language}: storing to collections: {', '.join(target_collections)}")
             
             total_stored = self.batch_processor.stream_chunks_to_storage(
                 all_chunks, target_collections, language
             )
+
+            logger.info(f"✅ {language}: stored {total_stored}/{num_chunks} chunks for {repo_id}")
 
             # Track stats for all collections
             for collection in target_collections:
@@ -375,6 +386,8 @@ class FileProcessor:
             for chunk in all_chunks:
                 domain = chunk.metadata.get('business_domain', 'unknown')
                 stats['business_domains'][domain] = stats['business_domains'].get(domain, 0) + 1
+        else:
+            logger.info(f"📊 {language}: 0 chunks extracted for {repo_id}")
 
         return stats
 
@@ -389,6 +402,7 @@ class FileProcessor:
         Returns:
             Statistics dictionary
         """
+        logger.info(f"📂 process_solidity_files: {len(files)} files in {repo_id}")
         stats = {
             'chunks_by_collection': {},
             'business_domains': {},
@@ -476,10 +490,12 @@ class FileProcessor:
         if total_stored > 0:
             stats['chunks_by_collection'][collection_name] = total_stored
 
+        logger.info(f"✅ Solidity: {total_stored} chunks stored for {repo_id}")
         return stats
 
     def process_documentation_files(self, files: List[Path], repo_id: str) -> Dict[str, Any]:
         """Process documentation (Markdown) files."""
+        logger.info(f"📂 process_documentation_files: {len(files)} files in {repo_id}")
         stats = {
             'chunks_by_collection': {},
             'business_domains': {},
@@ -522,16 +538,19 @@ class FileProcessor:
                 logger.error(f"❌ {error_msg}")
 
         if all_doc_chunks:
-            logger.info(f"📊 Processing {len(all_doc_chunks)} documentation chunks for embedding")
+            num_chunks = len(all_doc_chunks)
+            logger.info(f"📊 documentation: extracted {num_chunks} chunks, sending to embedding+storage")
             
             # Determine target collections - documentation always goes to documentation collection
             # Could also add BY_CONCERN logic here if needed
             doc_collection = self.config.collections.get('documentation', 'documentation')
             target_collections = [doc_collection]
             
-            logger.info(f"🎯 Storing to collections: {', '.join(target_collections)}")
+            logger.info(f"🎯 documentation: storing to collections: {', '.join(target_collections)}")
             
             total_stored = self.batch_processor.stream_docs_to_storage(all_doc_chunks, target_collections)
+
+            logger.info(f"✅ documentation: stored {total_stored}/{num_chunks} chunks for {repo_id}")
 
             # Track stats for all collections
             for collection in target_collections:
@@ -540,11 +559,14 @@ class FileProcessor:
             for chunk in all_doc_chunks:
                 domain = chunk.get('business_domain', 'unknown')
                 stats['business_domains'][domain] = stats['business_domains'].get(domain, 0) + 1
+        else:
+            logger.info(f"📊 documentation: 0 chunks extracted for {repo_id}")
 
         return stats
 
     def process_yaml_files(self, files: List[Path], repo_id: str) -> Dict[str, Any]:
         """Process YAML and Helm files."""
+        logger.info(f"📂 process_yaml_files: {len(files)} files in {repo_id}")
         if not self.yaml_parser:
             logger.warning("⚠️ YAML parser not initialized, skipping YAML files")
             return {'chunks_by_collection': {}, 'business_domains': {}, 'errors': []}
@@ -574,7 +596,8 @@ class FileProcessor:
 
         # Convert metadata to chunks and store
         if all_metadata_items:
-            logger.info(f"📊 Processing {len(all_metadata_items)} YAML items for embedding")
+            num_chunks = len(all_metadata_items)
+            logger.info(f"📊 yaml: {num_chunks} items → embedding+storage")
             from ..parsers.rust_parser import RustCodeChunk
             
             chunks = []
@@ -596,11 +619,13 @@ class FileProcessor:
                 chunks, [collection_name], 'yaml'
             )
             stats['chunks_by_collection'][collection_name] = total_stored
+            logger.info(f"✅ yaml: stored {total_stored}/{num_chunks} chunks for {repo_id}")
 
         return stats
 
     def process_terraform_files(self, files: List[Path], repo_id: str) -> Dict[str, Any]:
         """Process Terraform/IaC files."""
+        logger.info(f"📂 process_terraform_files: {len(files)} files in {repo_id}")
         if not self.terraform_parser:
             logger.warning("⚠️ Terraform parser not initialized, skipping Terraform files")
             return {'chunks_by_collection': {}, 'business_domains': {}, 'errors': []}
@@ -630,7 +655,8 @@ class FileProcessor:
 
         # Convert metadata to chunks and store
         if all_metadata_items:
-            logger.info(f"📊 Processing {len(all_metadata_items)} Terraform items for embedding")
+            num_chunks = len(all_metadata_items)
+            logger.info(f"📊 terraform: {num_chunks} items → embedding+storage")
             from ..parsers.rust_parser import RustCodeChunk
             
             chunks = []
@@ -652,11 +678,13 @@ class FileProcessor:
                 chunks, [collection_name], 'terraform'
             )
             stats['chunks_by_collection'][collection_name] = total_stored
+            logger.info(f"✅ terraform: stored {total_stored}/{num_chunks} chunks for {repo_id}")
 
         return stats
 
     def process_cicd_files(self, files: List[Path], repo_id: str) -> Dict[str, Any]:
         """Process CI/CD workflow files."""
+        logger.info(f"📂 process_cicd_files: {len(files)} files in {repo_id}")
         if not self.cicd_parser:
             logger.warning("⚠️ CI/CD parser not initialized, skipping CI/CD files")
             return {'chunks_by_collection': {}, 'business_domains': {}, 'errors': []}
@@ -686,7 +714,8 @@ class FileProcessor:
 
         # Convert metadata to chunks and store
         if all_metadata_items:
-            logger.info(f"📊 Processing {len(all_metadata_items)} CI/CD items for embedding")
+            num_chunks = len(all_metadata_items)
+            logger.info(f"📊 cicd: {num_chunks} items → embedding+storage")
             from ..parsers.rust_parser import RustCodeChunk
             
             chunks = []
@@ -708,6 +737,7 @@ class FileProcessor:
                 chunks, [collection_name], 'cicd'
             )
             stats['chunks_by_collection'][collection_name] = total_stored
+            logger.info(f"✅ cicd: stored {total_stored}/{num_chunks} chunks for {repo_id}")
 
         return stats
 

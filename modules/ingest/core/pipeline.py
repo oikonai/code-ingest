@@ -233,6 +233,10 @@ class IngestionPipeline:
             repos = DEFAULT_REPOSITORIES
             logger.info(f"📋 Using {len(repos)} repositories from DEFAULT_REPOSITORIES (legacy)")
 
+        if repos:
+            repo_names = [r.github_url.split('/')[-1] if isinstance(r, RepoConfig) else getattr(r, 'repo_id', str(r)) for r in repos]
+            logger.info(f"📋 Repositories to ingest: {repo_names}")
+
         total_stats = {
             'repositories_processed': 0,
             'files_by_language': {},
@@ -280,10 +284,15 @@ class IngestionPipeline:
 
             total_stats['errors'].extend(repo_stats.get('errors', []))
 
+            repo_chunks = sum(repo_stats.get('chunks_by_collection', {}).values())
+            repo_name = repo_config.github_url.split('/')[-1] if isinstance(repo_config, RepoConfig) else getattr(repo_config, 'repo_id', '?')
+            logger.info(f"   📊 {repo_name}: {repo_chunks} chunks from this repository")
+
         # Clear checkpoint on successful completion
         self.checkpoint_manager.clear_checkpoint()
 
-        logger.info(f"✅ Repository ingestion complete")
+        total_stats['total_chunks'] = sum(total_stats['chunks_by_collection'].values())
+        logger.info(f"✅ Repository ingestion complete (total_chunks={total_stats['total_chunks']})")
         self._log_statistics(total_stats)
 
         return total_stats
@@ -308,13 +317,18 @@ class IngestionPipeline:
 
         # Categorize files by language
         language_files = self.file_processor.categorize_files_by_language(repo_path)
+        total_files = sum(len(f) for f in language_files.values())
+        repo_name = repo_config.github_url.split('/')[-1]
+        if total_files == 0:
+            logger.warning(f"⚠️ No code files found in {repo_name} (all skipped or empty)")
+        else:
+            logger.info(f"📝 {repo_name}: {total_files} total files to process across languages")
 
         # Process each language
         for language, files in language_files.items():
             if not files:
                 continue
 
-            repo_name = repo_config.github_url.split('/')[-1]
             logger.info(f"📝 Processing {len(files)} {language} files in {repo_name}")
             stats['files_by_language'][language] = len(files)
 
@@ -343,6 +357,7 @@ class IngestionPipeline:
                 continue
 
             # Aggregate language stats
+            lang_chunks = sum(lang_stats.get('chunks_by_collection', {}).values())
             for collection, count in lang_stats.get('chunks_by_collection', {}).items():
                 stats['chunks_by_collection'][collection] = \
                     stats['chunks_by_collection'].get(collection, 0) + count
@@ -352,6 +367,7 @@ class IngestionPipeline:
                     stats['business_domains'].get(domain, 0) + count
 
             stats['errors'].extend(lang_stats.get('errors', []))
+            logger.info(f"   ✅ {language}: {lang_chunks} chunks stored for {repo_name}")
 
         return stats
     
@@ -472,6 +488,8 @@ class IngestionPipeline:
         logger.info("📊 Ingestion Statistics:")
         logger.info("="*60)
 
+        total_chunks = stats.get('total_chunks', sum(stats.get('chunks_by_collection', {}).values()))
+        logger.info(f"  Total chunks: {total_chunks}")
         logger.info(f"  Repositories: {stats['repositories_processed']}")
 
         if stats['files_by_language']:

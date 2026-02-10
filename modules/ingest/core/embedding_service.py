@@ -35,7 +35,7 @@ class EmbeddingService:
     def __init__(
         self,
         base_url: str = "https://api.deepinfra.com/v1/openai",
-        model: str = "Qwen/Qwen3-Embedding-8B-batch",
+        model: str = "Qwen/Qwen3-Embedding-8B",
         rate_limit: int = 4,
         embedding_size: int = 4096,
         timeout: int = 60,
@@ -45,7 +45,7 @@ class EmbeddingService:
 
         Args:
             base_url: DeepInfra API endpoint (default: https://api.deepinfra.com/v1/openai)
-            model: Embedding model name (default: Qwen/Qwen3-Embedding-8B-batch)
+            model: Embedding model name (default: Qwen/Qwen3-Embedding-8B)
             rate_limit: Maximum concurrent requests
             embedding_size: Expected embedding dimension (4096 for Qwen3)
             timeout: Request timeout in seconds
@@ -112,6 +112,7 @@ class EmbeddingService:
         Returns:
             List of embedding vectors, or empty list on failure
         """
+        last_error = None
         for attempt in range(max_retries):
             try:
                 if attempt == 0:
@@ -149,6 +150,7 @@ class EmbeddingService:
                 return embeddings
 
             except Exception as e:
+                last_error = e
                 logger.warning(f"⚠️ Request failed on attempt {attempt + 1}/{max_retries}: {type(e).__name__}: {e}")
 
                 if attempt < max_retries - 1:
@@ -157,7 +159,10 @@ class EmbeddingService:
                     time.sleep(wait_time)
                     continue
                 else:
-                    logger.error(f"❌ Max retries ({max_retries}) exceeded")
+                    logger.error(
+                        f"❌ Embedding batch failed after {max_retries} retries: "
+                        f"{type(last_error).__name__}: {last_error}"
+                    )
                     return []
 
         return []

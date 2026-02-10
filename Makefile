@@ -1,7 +1,7 @@
 # Code Ingestion System - Multi-Language Vector Database Pipeline
 # Comprehensive Makefile for ingestion capabilities
 
-.PHONY: help install deps setup venv sync test clean ingest ingest-warmup ingest-search vector-status index-check clone-repos clone-repos-medium clone-repos-all discover-repos derive-dependencies collection-cleanup collection-status repo-metadata stats-report health check-env status info up up-mcp down test-mcp verify-surrealdb
+.PHONY: help install deps setup venv sync test clean ingest ingest-warmup ingest-search vector-status index-check clone-repos clone-repos-medium clone-repos-all discover-repos derive-dependencies collection-cleanup collection-status repo-metadata stats-report health check-env status info up up-mcp down surrealdb-inspect mcp-health test-mcp verify-surrealdb
 
 # Colors for better readability
 YELLOW := \033[33m
@@ -45,9 +45,14 @@ help:
 	@echo "  make test-mcp         Test code-ingest-mcp (list_collections + semantic search; requires Docker up)"
 	@echo "  make verify-surrealdb List SurrealDB tables (ensure Docker + .env SURREALDB_* pointing at localhost:8000)"
 	@echo ""
+	@echo "$(BLUE)🔍 Verify SurrealDB & MCP (after ingest):$(RESET)"
+	@echo "  make surrealdb-inspect List tables and record counts in SurrealDB (run in ingest container)"
+	@echo "  make mcp-health       Curl MCP /health and /debug/collections (MCP must be running)"
+	@echo ""
 	@echo "$(BLUE)⚙️  System Management:$(RESET)"
 	@echo "  make health           System health check (ingestion + vector search)"
-	@echo "  make test             Run all tests"
+	@echo "  make test             Run basic import/pipeline test"
+	@echo "  make test-unit        Run unit tests (batch processor + SurrealDB parsing) in Docker"
 	@echo "  make clean            Clean up generated files and caches"
 	@echo ""
 	@echo "$(YELLOW)Example Usage:$(RESET)"
@@ -193,6 +198,12 @@ test:
 	pipeline = IngestionPipeline(); \
 	print('✅ Pipeline initialization test passed')"
 
+# Unit tests (batch processor + SurrealDB get_collections); run in Docker so deps are available
+test-unit:
+	@echo "$(BLUE)🧪 Running unit tests (Docker)...$(RESET)"
+	docker compose run --rm -v "$$(pwd)/tests:/app/tests:ro" -v "$$(pwd)/modules:/app/modules:ro" \
+		--entrypoint "python" ingest -m unittest tests.unit.test_batch_processor tests.unit.test_surrealdb_get_collections -v
+
 clean:
 	@echo "$(YELLOW)🧹 Cleaning up generated files...$(RESET)"
 	@rm -f ingestion_checkpoint.json
@@ -209,6 +220,22 @@ up-mcp:
 
 down:
 	docker compose down
+
+# Verify SurrealDB has data (same NS/DB as ingest); run after ingest or with SurrealDB up
+surrealdb-inspect:
+	@echo "$(BLUE)🔍 Inspecting SurrealDB (tables + record counts)...$(RESET)"
+	@echo "$(YELLOW)   Uses same SURREALDB_* env as ingest container.$(RESET)"
+	docker compose run --rm ingest python /app/scripts/inspect_surrealdb.py
+
+# Curl MCP health and debug/collections (MCP must be running: make up-mcp or docker compose up -d mcp)
+# Add raw=1 to see raw INFO FOR DB shape when MCP reports 0 collections: make mcp-health RAW=1
+mcp-health:
+	@echo "$(BLUE)🩺 MCP health and collections...$(RESET)"
+	@echo "$(YELLOW)   Health:$(RESET)"
+	@curl -s http://localhost:8001/health | (python3 -m json.tool 2>/dev/null || cat)
+	@echo ""
+	@echo "$(YELLOW)   Collections (what MCP sees):$(RESET)"
+	@curl -s "http://localhost:8001/debug/collections$(if $(RAW),?raw=1)" | (python3 -m json.tool 2>/dev/null || cat)
 
 test-mcp:
 	@echo "$(GREEN)Testing code-ingest-mcp at http://localhost:8001/mcp (ensure Docker is up)...$(RESET)"

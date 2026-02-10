@@ -71,6 +71,7 @@ class BatchProcessor:
             Number of chunks successfully stored
         """
         if not chunks:
+            logger.info("📥 stream_chunks_to_storage: 0 chunks, skipping")
             return 0
 
         total_stored = 0
@@ -88,6 +89,10 @@ class BatchProcessor:
             })
 
         total_batches = len(batches)
+        logger.info(
+            f"📥 stream_chunks_to_storage: {len(chunks)} chunks → {total_batches} batches "
+            f"(batch_size={self.batch_size}), collections={collection_names}, language={language}"
+        )
 
         # Process batches with retry logic
         for retry_round in range(self.max_retries):
@@ -174,9 +179,11 @@ class BatchProcessor:
                 logger.error(f"   - Batch {batch['id']}: {len(batch['chunks'])} chunks lost")
 
         logger.info(
-            f"✅ Parallel streaming complete: {total_stored}/{len(chunks)} "
-            f"chunks stored in Qdrant"
+            f"✅ Parallel streaming complete: {total_stored}/{len(chunks)} chunks stored "
+            f"(collections: {collection_names})"
         )
+        if total_stored < len(chunks):
+            logger.warning(f"⚠️ {len(chunks) - total_stored} chunks were not stored due to failures")
         return total_stored
 
     def _process_code_batch_parallel(
@@ -220,7 +227,11 @@ class BatchProcessor:
             embeddings = self.embedding_service.generate_embeddings(texts)
 
             if not embeddings or len(embeddings) != len(valid_chunks):
-                logger.error(f"❌ Parallel batch {batch_id} embedding failed")
+                logger.error(
+                    f"❌ Parallel batch {batch_id} embedding failed "
+                    f"(EmbeddingService returned {len(embeddings) if embeddings else 0} vectors for {len(valid_chunks)} chunks; "
+                    f"see ERROR above for timeout/API cause)"
+                )
                 return 0
 
             # Store batch immediately in all target collections
@@ -256,6 +267,7 @@ class BatchProcessor:
             Number of chunks successfully stored
         """
         if not doc_chunks:
+            logger.info("📥 stream_docs_to_storage: 0 doc chunks, skipping")
             return 0
 
         total_stored = 0
@@ -273,6 +285,10 @@ class BatchProcessor:
             })
 
         total_batches = len(batches)
+        logger.info(
+            f"📥 stream_docs_to_storage: {len(doc_chunks)} doc chunks → {total_batches} batches, "
+            f"collections={collection_names}"
+        )
 
         # Process batches with retry logic
         for retry_round in range(self.max_retries):

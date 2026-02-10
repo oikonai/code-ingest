@@ -26,7 +26,7 @@ QDRANT_API_KEY=your_qdrant_jwt_token
 
 # DeepInfra (Embeddings)
 DEEPINFRA_API_KEY=your_deepinfra_key
-EMBEDDING_MODEL=Qwen/Qwen3-Embedding-8B-batch  # Optional (default)
+EMBEDDING_MODEL=Qwen/Qwen3-Embedding-8B  # Optional (default)
 EMBEDDING_ENDPOINT=https://api.deepinfra.com/v1/openai  # Optional (default)
 ```
 
@@ -232,7 +232,7 @@ cross_collection_search(
 
 ### Embedding Generation
 - **Service:** DeepInfra API (direct)
-- **Model:** Qwen/Qwen3-Embedding-8B-batch (default, configurable)
+- **Model:** Qwen/Qwen3-Embedding-8B (default, configurable)
 - **Warmup:** Pre-warm endpoint on server startup (30s timeout)
 
 ### Search Performance

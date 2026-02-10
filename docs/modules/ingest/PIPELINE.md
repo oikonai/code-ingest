@@ -7,7 +7,7 @@
 
 ## Overview
 
-The `IngestionPipeline` is the main orchestrator for ingesting multi-language codebases (Rust, TypeScript, Solidity, Markdown documentation) into Qdrant vector database. It coordinates service initialization, file processing, checkpoint management, and cross-language search capabilities using Qwen3-Embedding-8B-batch (4096D) embeddings via DeepInfra API.
+The `IngestionPipeline` is the main orchestrator for ingesting multi-language codebases (Rust, TypeScript, Solidity, Markdown documentation) into Qdrant vector database. It coordinates service initialization, file processing, checkpoint management, and cross-language search capabilities using Qwen3-Embedding-8B (4096D) embeddings via DeepInfra API.
 
 ## Architecture
 
@@ -79,6 +79,50 @@ Aggregated Statistics
     └─ Errors
 ```
 
+## Debugging: Why "Total chunks: 0"?
+
+If the ingest log shows **Total chunks: 0** and **Repositories: 4**, the pipeline ran but **no vectors were written**. The usual cause is **embedding failures** before any storage step.
+
+### Failure path
+
+1. **Pipeline** → `_ingest_repository_new()` per repo → **FileProcessor** (categorize + parse) → chunks produced.
+2. **BatchProcessor.stream_chunks_to_storage()** batches chunks and calls **EmbeddingService.generate_embeddings(texts)** per batch.
+3. If the embedding API fails (timeout, 500, rate limit), **generate_embeddings** returns **[]** after retries.
+4. **BatchProcessor._process_code_batch_parallel()** then sees `not embeddings or len(embeddings) != len(valid_chunks)` and returns **0**; it never calls **StorageManager.store_code_vectors_multi_collection()**.
+5. So **SurrealDB (or any vector backend) is never written to** when all batches fail at embedding.
+
+Log messages that confirm this:
+
+- `❌ Parallel batch N embedding failed` → embedding returned empty or length mismatch.
+- `⚠️ Batch N failed (likely timeout), will retry` → batch will be retried; if all retries fail, that batch contributes 0 chunks.
+
+### Code locations
+
+| Step | File | Symbol |
+|------|------|--------|
+| Per-repo ingest | `modules/ingest/core/pipeline.py` | `_ingest_repository_new()` |
+| Batch + retry | `modules/ingest/core/batch_processor.py` | `stream_chunks_to_storage()`, `_process_code_batch_parallel()` |
+| Embedding call | `modules/ingest/core/embedding_service.py` | `generate_embeddings()` |
+| Storage (only if embedding succeeds) | `modules/ingest/core/storage_manager.py` | `store_code_vectors_multi_collection()` |
+| Vector write | `modules/ingest/services/surrealdb_vector_client.py` | `upsert_vectors()` |
+
+### What to fix
+
+- **Embedding timeouts/errors:** Reduce `batch_size` (e.g. 20–30), increase `embedding_timeout`, or switch embedding model (e.g. non-batch model).
+- **Verify SurrealDB is empty:** Run `scripts/inspect_surrealdb.py` (see repo root) to list tables and counts; 0 tables is expected when no batch ever succeeded.
+- **Unit tests:** Use mocked embedding and storage to assert the flow without a live API or DB:
+  - `make test-unit` (runs in Docker so project deps are available), or
+  - `docker compose run --rm -v $(pwd)/tests:/app/tests:ro -v $(pwd)/modules:/app/modules:ro --entrypoint python ingest -m unittest tests.unit.test_batch_processor tests.unit.test_surrealdb_get_collections -v`
+  - `tests/unit/test_batch_processor.py`: when embedding returns `[]`, storage is never called and stored count is 0.
+  - `tests/unit/test_surrealdb_get_collections.py`: parsing of SurrealDB `INFO FOR DB` dict response.
+
+### Next steps to get vectors stored
+
+1. **Reduce batch size** so each embedding request is smaller and less likely to timeout: in `IngestionConfig` (or env) set `batch_size` to 20–30 (default is 50).
+2. **Increase embedding timeout**: set `embedding_timeout` (e.g. 120 seconds) or `EMBEDDING_TIMEOUT` if exposed.
+3. **Confirm embedding API**: call DeepInfra with a tiny batch (e.g. one string) from the same network as ingest (e.g. from inside the ingest container) to rule out connectivity or quota issues.
+4. **Re-run ingest** after a change; then run `scripts/inspect_surrealdb.py` again to confirm tables and counts appear.
+
 ## Class Signature
 
 ```python
@@ -130,7 +174,7 @@ class IngestionConfig:
     checkpoint_file: Path = Path("./ingestion_checkpoint.json")
 
     # Batch processing
-    batch_size: int = 100               # Optimized for 45 embeddings/sec
+    batch_size: int = 25                # Chunks per embedding request (env: BATCH_SIZE). Use 50–100 with -batch model
     rate_limit: int = 4                 # Max concurrent requests (4 containers)
     max_batch_retries: int = 3          # Retry failed batches
 

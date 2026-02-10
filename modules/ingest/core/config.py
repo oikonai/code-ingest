@@ -206,12 +206,12 @@ class IngestionConfig:
     )
 
     # Embedding model configuration
-    # Default: Qwen/Qwen3-Embedding-8B-batch (batch-optimized)
+    # Default: Qwen/Qwen3-Embedding-8B (standard endpoint; use -batch for batch-optimized)
     # Override via EMBEDDING_MODEL environment variable
     embedding_model: str = field(
         default_factory=lambda: os.getenv(
             "EMBEDDING_MODEL",
-            "Qwen/Qwen3-Embedding-8B-batch"
+            "Qwen/Qwen3-Embedding-8B"
         )
     )
 
@@ -219,7 +219,10 @@ class IngestionConfig:
     checkpoint_file: Path = field(default_factory=lambda: Path("./ingestion_checkpoint.json"))
 
     # Batch processing configuration
-    batch_size: int = 50  # Batch size for embedding requests
+    # Default 15 for standard Qwen/Qwen3-Embedding-8B; use 25–100 with -batch model
+    batch_size: int = field(
+        default_factory=lambda: int(os.getenv("BATCH_SIZE", "15"))
+    )
     rate_limit: int = 4  # Max concurrent requests
     max_batch_retries: int = 3  # Retry failed batches up to 3 times
 
@@ -227,7 +230,10 @@ class IngestionConfig:
     embedding_size: int = 4096  # Qwen3-Embedding-8B dimension
 
     # Timeout configuration (seconds)
-    embedding_timeout: int = 60  # DeepInfra API timeout
+    # Standard (non-batch) model can be slower; override with EMBEDDING_TIMEOUT
+    embedding_timeout: int = field(
+        default_factory=lambda: int(os.getenv("EMBEDDING_TIMEOUT", "120"))
+    )
     warmup_timeout: int = 60  # Minimal cold starts with DeepInfra
 
     # Collection names by language (BY_LANGUAGE)
