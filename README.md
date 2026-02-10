@@ -12,7 +12,7 @@ A production-ready code ingestion pipeline that:
 - **Clones** GitHub repositories
 - **Parses** multi-language codebases (Rust, TypeScript, Solidity, Documentation)
 - **Embeds** code chunks using state-of-the-art embedding models
-- **Stores** vectors in Qdrant for semantic search
+- **Stores** vectors in Qdrant or SurrealDB for semantic search
 - **Monitors** ingestion quality and performance
 
 ### Key Features
@@ -29,84 +29,68 @@ A production-ready code ingestion pipeline that:
 
 ## 🚀 Quick Start
 
+The primary way to run the code ingestion system is with **Docker Compose**. You get SurrealDB, ingestion, and the MCP server in one command.
+
 ### Prerequisites
 
-- Python 3.11+
-- [uv](https://github.com/astral-sh/uv) (installed automatically if missing)
-- Qdrant Vector Database (local or cloud)
-- Embedding service (DeepInfra API)
-- GitHub Personal Access Token (for private repos)
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
+- [DeepInfra](https://deepinfra.com) API key (embeddings)
+- GitHub Personal Access Token (for cloning repos; optional for public-only)
 
-### Installation
+### Run with Docker Compose
 
 ```bash
 # Clone the repository
 git clone git@github.com:oikonai/code-ingest.git
 cd code-ingest
 
-# Complete setup with virtual environment (uv-based)
-make setup
-
-# Or step-by-step:
-make venv      # Create virtual environment
-make install   # Install dependencies
-
-# Set up environment variables
+# Configure environment
 cp .env.example .env
-# Edit .env with your credentials:
-# QDRANT_URL=your_qdrant_url
-# QDRANT_API_KEY=your_qdrant_key
-# DEEPINFRA_API_KEY=your_key
-# GITHUB_TOKEN=your_pat_token
-
-# Activate virtual environment
-source .venv/bin/activate
-
-# Verify setup
-make check-env
-```
-
-## 🐳 Docker Compose (Local Setup)
-
-**NEW**: Run the entire system locally with SurrealDB:
-
-```bash
-# Configure for Docker
-cp .env.docker.example .env
-# Edit .env with your credentials (embedding service, GitHub token)
+# Edit .env and set:
+#   DEEPINFRA_API_KEY=your_key
+#   GITHUB_TOKEN=your_pat_token   # for private repos
 
 # Start all services (SurrealDB + Ingestion + MCP)
 docker compose up
+```
 
+This starts **SurrealDB** (port 8000), runs a **full ingestion** (clone/refresh repos, parse, embed, store), then brings up the **MCP server** (port 8001). When ready:
+
+```bash
 # Check health
 curl http://localhost:8001/health
-
-# Access SurrealDB
-curl http://localhost:8000/health
 ```
 
 **Services**:
-- **SurrealDB** (port 8000): Local vector database
-- **Ingestion**: One-shot code ingestion (clones repos, ingests, exits)
-- **MCP Server** (port 8001): Query interface with health endpoint
+- **SurrealDB** (8000): Local vector database
+- **Ingestion**: One-shot full re-ingestion, then exits
+- **MCP Server** (8001): Query interface and health endpoint
 
-See [docker/README.md](docker/README.md) for complete Docker documentation.
+See [docker/README.md](docker/README.md) for options (e.g. run without re-ingestion, priority filter, troubleshooting).
 
-### Basic Usage (Local Python)
+### Alternative: Local Python
+
+To run without Docker (e.g. with Qdrant or a remote SurrealDB):
 
 ```bash
-# Ingest repositories
+# Clone and setup
+git clone git@github.com:oikonai/code-ingest.git
+cd code-ingest
+make setup
+
+# Configure .env (Qdrant or SurrealDB, DeepInfra, GitHub token)
+cp .env.example .env
+# Edit .env, then:
+source .venv/bin/activate
+make check-env
+
+# Ingest and search
 make ingest
-
-# Test vector search
 make ingest-search QUERY='authentication service'
-
-# Check system health
 make health
-
-# View vector database statistics
-make vector-status
 ```
+
+Requires Python 3.11+ and [uv](https://github.com/astral-sh/uv) (installed automatically by `make setup`).
 
 ## 🗄️ Vector Backend Configuration
 
@@ -258,6 +242,8 @@ code-ingest/
 
 ## 🛠️ Available Commands
 
+These commands are for **local Python** usage. With Docker Compose, use `docker compose up` and see [docker/README.md](docker/README.md) for service control.
+
 ### 🏗️ Setup & Installation
 ```bash
 make venv             # Create virtual environment using uv
@@ -305,7 +291,7 @@ flowchart LR
     C --> D[AST Extraction]
     D --> E[Chunk Generation]
     E --> F[Embedding Service]
-    F --> G[Qdrant Vector DB]
+    F --> G[Vector DB]
     G --> H[Semantic Search]
 ```
 
@@ -314,7 +300,7 @@ flowchart LR
 1. **📂 Repository Manager** - Clones and manages GitHub repositories with priority-based selection
 2. **🔍 Language Parsers** - AST-based parsing for Rust, TypeScript, Solidity, Documentation
 3. **🧠 Embedding Service** - State-of-the-art embeddings (Qwen3-Embedding-8B, 4096D) via DeepInfra
-4. **💾 Vector Storage** - Qdrant database with language-specific collections
+4. **💾 Vector Storage** - Qdrant or SurrealDB with language-specific collections
 5. **🔎 Search Engine** - Cross-language semantic search with enhanced ranking
 6. **📊 Monitoring** - Health checks, statistics, and quality validation
 
@@ -331,16 +317,29 @@ flowchart LR
 
 ### Environment Variables
 
+**Docker Compose** (default): Set `DEEPINFRA_API_KEY` and `GITHUB_TOKEN` in `.env`; SurrealDB is configured automatically in the stack.
+
+**Local Python** (Qdrant or SurrealDB):
+
 ```env
-# Required
+# Vector backend: qdrant | surrealdb
+VECTOR_BACKEND=qdrant
+
+# For Qdrant
 QDRANT_URL=https://your-qdrant-instance.qdrant.io
 QDRANT_API_KEY=your_qdrant_api_key
 
-# Embedding Service (DeepInfra)
-# Get your API key at https://deepinfra.com
-DEEPINFRA_API_KEY=your_deepinfra_key
+# For SurrealDB (local)
+SURREALDB_URL=http://localhost:8000
+SURREALDB_NS=code_ingest
+SURREALDB_DB=vectors
+SURREALDB_USER=root
+SURREALDB_PASS=root
 
-# Repository Cloning
+# Embedding (required for both)
+DEEPINFRA_API_KEY=your_deepinfra_key   # https://deepinfra.com
+
+# Repository cloning
 GITHUB_TOKEN=your_github_pat_token
 ```
 

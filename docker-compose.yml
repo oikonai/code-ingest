@@ -25,7 +25,7 @@ services:
   surrealdb:
     image: surrealdb/surrealdb:latest
     container_name: code-ingest-surrealdb
-    user: "0"
+    user: "0"  # Run as root so /data volume is writable (image runs non-root by default)
     ports:
       - "8000:8000"
     volumes:
@@ -36,8 +36,7 @@ services:
       --user root
       --pass root
       file:/data/database.db
-    # No healthcheck: image is minimal (no curl/shell). Ingest and MCP entrypoints
-    # wait for SURREALDB_URL/health before proceeding.
+    # No healthcheck: official image is minimal (no curl/wget). Ingest and MCP entrypoints poll /health.
     networks:
       - code-ingest-network
 
@@ -49,7 +48,8 @@ services:
       dockerfile: Dockerfile.ingest
     container_name: code-ingest-ingestion
     depends_on:
-      - surrealdb
+      surrealdb:
+        condition: service_started
     environment:
       - SURREALDB_URL=http://surrealdb:8000
       - SURREALDB_NS=code_ingest
@@ -72,7 +72,7 @@ services:
       # Default medium so repos without explicit priority in config get cloned.
       - PRIORITY=${PRIORITY:-low}
       
-      # Log level for ingestion pipeline (DEBUG, INFO, WARNING, ERROR). INFO shows file/chunk/batch progress.
+      # Logging level (DEBUG, INFO, WARNING, ERROR)
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./repos:/app/repos  # Mount repos directory
@@ -89,7 +89,8 @@ services:
       dockerfile: Dockerfile.mcp
     container_name: code-ingest-mcp
     depends_on:
-      - surrealdb
+      surrealdb:
+        condition: service_started
     ports:
       - "8001:8001"  # MCP server port
     environment:
@@ -103,10 +104,14 @@ services:
       - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B}
       
-      # Health endpoint configuration
+      # Health endpoint and MCP over HTTP (Cursor connects to http://localhost:8001/mcp)
       - DOCKER_ENV=true
       - ENABLE_HEALTH_ENDPOINT=true
       - HEALTH_PORT=8001
+      - MCP_HTTP_TRANSPORT=true
+      
+      # Logging level (DEBUG, INFO, WARNING, ERROR)
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./config:/app/config  # Mount config
       - ingest-status:/app/status:ro  # Read-only access to status

@@ -120,9 +120,10 @@ async def lifespan(server: FastMCP):
         logger.info(f"📡 {SERVER_NAME} is ready to accept MCP connections")
         logger.info("=" * 80)
 
-        # Start health endpoint server only when NOT using HTTP transport (local dev).
-        # In Docker we use transport="http" and serve /health via a custom route.
-        if os.getenv('DOCKER_ENV') != 'true' and os.getenv('ENABLE_HEALTH_ENDPOINT') != 'true':
+        # Start health endpoint server only when NOT using HTTP transport (stdio + separate health server)
+        use_http_transport = os.getenv('MCP_HTTP_TRANSPORT', '').lower() == 'true'
+        health_server = None
+        if (os.getenv('DOCKER_ENV') == 'true' or os.getenv('ENABLE_HEALTH_ENDPOINT') == 'true') and not use_http_transport:
             try:
                 from health_server import start_health_server
                 health_port = int(os.getenv('HEALTH_PORT', '8001'))
@@ -165,70 +166,90 @@ async def lifespan(server: FastMCP):
 mcp = FastMCP(SERVER_NAME, lifespan=lifespan)
 
 
-# Custom /health route (used when running with transport="http" in Docker)
-@mcp.custom_route("/health", methods=["GET"])
-async def health_route(request):
-    """Health check: SurrealDB and ingestion status. Used by Docker healthcheck and Cursor."""
-    from health_server import get_health_response
-    body, status_code = get_health_response()
-    return JSONResponse(body, status_code=status_code)
-
-
-# Debug endpoint: what collections does MCP see? (same SurrealDB as ingest; compare with make surrealdb-inspect)
-@mcp.custom_route("/debug/collections", methods=["GET"])
-async def debug_collections_route(request):
-    """Return list of collections and counts from the vector client. Use to verify MCP sees same DB as ingest.
-    Add ?raw=1 to include raw INFO FOR DB result (for debugging parsing)."""
-    global _vector_client
-    if not _vector_client:
-        return JSONResponse(
-            {"error": "Vector client not initialized", "collections": [], "count": 0},
-            status_code=503,
-        )
+def _register_health_route():
+    """Register /health route for HTTP transport (Docker). Uses FastMCP custom_route if available."""
+    if not hasattr(mcp, 'custom_route'):
+        return
     try:
-        raw_param = request.query_params.get("raw", "").lower() in ("1", "true", "yes")
-        names = _vector_client.get_collections()
-        details = []
-        for name in names:
-            info = _vector_client.get_collection_info(name)
-            points = 0
-            if info:
-                points = info.get("vectors_count", info.get("points_count", 0))
-            details.append({"name": name, "points": points})
-        body = {"collections": details, "count": len(names), "backend": "surrealdb"}
-        if raw_param and hasattr(_vector_client, "client"):
-            try:
-                body["_client_url"] = getattr(_vector_client, "url", None)
-                body["_client_namespace"] = getattr(_vector_client, "namespace", None)
-                body["_client_database"] = getattr(_vector_client, "database", None)
-                raw_result = _vector_client.client.query("INFO FOR DB;")
-                body["_raw_info_type"] = type(raw_result).__name__
-                if isinstance(raw_result, dict):
-                    body["_raw_info_keys"] = list(raw_result.keys())
-                    if "tables" in raw_result:
-                        tbls = raw_result["tables"]
-                        body["_raw_tables_type"] = type(tbls).__name__
-                        if isinstance(tbls, dict):
-                            body["_raw_tables_keys"] = list(tbls.keys())[:20]
-                        elif isinstance(tbls, (list, tuple)):
-                            body["_raw_tables_len"] = len(tbls)
-                            body["_raw_tables_sample"] = list(tbls)[:5] if tbls else []
-                        elif tbls is not None:
-                            body["_raw_tables_repr"] = str(tbls)[:200]
-                elif isinstance(raw_result, (list, tuple)):
-                    body["_raw_info_len"] = len(raw_result)
-                    if len(raw_result) > 0:
-                        body["_raw_first_type"] = type(raw_result[0]).__name__
-                        if isinstance(raw_result[0], dict):
-                            body["_raw_first_keys"] = list(raw_result[0].keys())
-            except Exception as raw_err:
-                body["_raw_error"] = str(raw_err)
-        return JSONResponse(body)
+        from starlette.requests import Request
+        from starlette.responses import JSONResponse
+        from health_server import get_health_status
+        import asyncio
+
+        @mcp.custom_route("/health", methods=["GET"])
+        async def health_check(request: Request):
+            # get_health_status() is sync (urllib, file I/O); run in thread to avoid blocking
+            loop = asyncio.get_event_loop()
+            response_dict, status_code = await loop.run_in_executor(None, get_health_status)
+            return JSONResponse(response_dict, status_code=status_code)
     except Exception as e:
-        return JSONResponse(
-            {"error": str(e), "collections": [], "count": 0},
-            status_code=500,
-        )
+        logger.warning("Could not register /health custom route: %s", e)
+
+
+def _register_debug_route():
+    """Register /debug/collections route for HTTP transport. Shows what collections MCP sees."""
+    if not hasattr(mcp, 'custom_route'):
+        return
+    try:
+        from starlette.requests import Request
+        from starlette.responses import JSONResponse
+
+        @mcp.custom_route("/debug/collections", methods=["GET"])
+        async def debug_collections(request: Request):
+            """Return list of collections and counts from the vector client.
+            Add ?raw=1 to include raw INFO FOR DB result (for debugging parsing)."""
+            global _vector_client
+            if not _vector_client:
+                return JSONResponse(
+                    {"error": "Vector client not initialized", "collections": [], "count": 0},
+                    status_code=503,
+                )
+            try:
+                raw_param = request.query_params.get("raw", "").lower() in ("1", "true", "yes")
+                names = _vector_client.get_collections()
+                details = []
+                for name in names:
+                    info = _vector_client.get_collection_info(name)
+                    points = 0
+                    if info:
+                        points = info.get("vectors_count", info.get("points_count", 0))
+                    details.append({"name": name, "points": points})
+                body = {"collections": details, "count": len(names), "backend": "surrealdb"}
+                if raw_param and hasattr(_vector_client, "client"):
+                    try:
+                        body["_client_url"] = getattr(_vector_client, "url", None)
+                        body["_client_namespace"] = getattr(_vector_client, "namespace", None)
+                        body["_client_database"] = getattr(_vector_client, "database", None)
+                        raw_result = _vector_client.client.query("INFO FOR DB;")
+                        body["_raw_info_type"] = type(raw_result).__name__
+                        if isinstance(raw_result, dict):
+                            body["_raw_info_keys"] = list(raw_result.keys())
+                            if "tables" in raw_result:
+                                tbls = raw_result["tables"]
+                                body["_raw_tables_type"] = type(tbls).__name__
+                                if isinstance(tbls, dict):
+                                    body["_raw_tables_keys"] = list(tbls.keys())[:20]
+                                elif isinstance(tbls, (list, tuple)):
+                                    body["_raw_tables_len"] = len(tbls)
+                                    body["_raw_tables_sample"] = list(tbls)[:5] if tbls else []
+                                elif tbls is not None:
+                                    body["_raw_tables_repr"] = str(tbls)[:200]
+                        elif isinstance(raw_result, (list, tuple)):
+                            body["_raw_info_len"] = len(raw_result)
+                            if len(raw_result) > 0:
+                                body["_raw_first_type"] = type(raw_result[0]).__name__
+                                if isinstance(raw_result[0], dict):
+                                    body["_raw_first_keys"] = list(raw_result[0].keys())
+                    except Exception as raw_err:
+                        body["_raw_error"] = str(raw_err)
+                return JSONResponse(body)
+            except Exception as e:
+                return JSONResponse(
+                    {"error": str(e), "collections": [], "count": 0},
+                    status_code=500,
+                )
+    except Exception as e:
+        logger.warning("Could not register /debug/collections custom route: %s", e)
 
 
 # ============================================================================
@@ -327,7 +348,7 @@ def validate_environment() -> Dict[str, Any]:
         'surrealdb_url': surrealdb_url,
         'deepinfra_api_key': deepinfra_api_key,
         'embedding_base_url': embedding_base_url,
-        'embedding_endpoint': embedding_base_url,
+        'embedding_endpoint': embedding_base_url,  # alias used by lifespan yield
         'embedding_model': embedding_model,
     }
 
@@ -399,14 +420,19 @@ def main():
     """
     Main entry point for the MCP server.
 
-    - In Docker (DOCKER_ENV or ENABLE_HEALTH_ENDPOINT): run HTTP transport on HEALTH_PORT
-      so the container serves MCP and /health. Cursor connects via SSE URL (e.g. http://localhost:8001/mcp).
-    - Otherwise: run stdio transport for local/dev use (e.g. Cursor with command).
+    The lifespan context manager handles initialization and cleanup.
+    When MCP_HTTP_TRANSPORT=true (e.g. in Docker), runs with HTTP transport
+    on HEALTH_PORT so Cursor can connect via http://localhost:8001/mcp
+    and /health remains available on the same port.
     """
-    if os.getenv("DOCKER_ENV") == "true" or os.getenv("ENABLE_HEALTH_ENDPOINT") == "true":
-        port = int(os.getenv("HEALTH_PORT", "8001"))
-        logger.info(f"🌐 Starting MCP over HTTP on 0.0.0.0:{port} (connect at http://localhost:{port}/mcp)")
-        mcp.run(transport="http", host="0.0.0.0", port=port)
+    use_http = os.getenv('MCP_HTTP_TRANSPORT', '').lower() == 'true'
+    health_port = int(os.getenv('HEALTH_PORT', '8001'))
+
+    if use_http:
+        _register_health_route()
+        _register_debug_route()
+        logger.info(f"📡 MCP HTTP transport: http://0.0.0.0:{health_port}/mcp (Cursor: http://localhost:{health_port}/mcp)")
+        mcp.run(transport="http", host="0.0.0.0", port=health_port)
     else:
         mcp.run()
 

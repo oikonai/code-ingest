@@ -63,7 +63,7 @@ class SurrealDBVectorClient:
         self.client = Surreal(self.url)
         
         try:
-            # Sign in (root user: use username/password per SDK docs)
+            # Sign in (SDK expects "username" and "password" for root auth)
             self.client.signin({"username": self.username, "password": self.password})
             
             # Use namespace and database
@@ -505,9 +505,7 @@ class SurrealDBVectorClient:
     def health_check(self) -> Dict[str, Any]:
         """Check SurrealDB connection health."""
         try:
-            # Try a simple query
-            self.client.query("SELECT 1;")
-            
+            # SurrealQL requires SELECT ... FROM; use INFO FOR DB (same as get_collections) as connectivity check
             collections = self.get_collections()
             
             return {
