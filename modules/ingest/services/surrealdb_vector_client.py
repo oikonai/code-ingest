@@ -212,13 +212,14 @@ class SurrealDBVectorClient:
                 # Sanitize ID for SurrealDB record ID format
                 record_id = vec['id'].replace('-', '_')
                 
-                # Upsert record using UPDATE or CREATE
-                # SurrealDB syntax: UPDATE table:id SET field = value, field2 = value2
+                # Upsert record using CREATE (replaces if exists)
+                # SurrealDB CREATE with explicit ID will replace existing records
                 self.client.query(
                     f"""
-                    UPDATE {table_name}:`{record_id}` SET
-                        vector = $vector,
-                        payload = $payload
+                    CREATE {table_name}:`{record_id}` CONTENT {{
+                        vector: $vector,
+                        payload: $payload
+                    }}
                     """,
                     {
                         'vector': vec['vector'],
@@ -268,12 +269,14 @@ class SurrealDBVectorClient:
                 # Sanitize ID
                 record_id = str(point_id).replace('-', '_')
                 
-                # Upsert record
+                # Upsert record using CREATE (replaces if exists)
+                # SurrealDB CREATE with explicit ID will replace existing records
                 self.client.query(
                     f"""
-                    UPDATE {table_name}:`{record_id}` SET
-                        vector = $vector,
-                        payload = $payload
+                    CREATE {table_name}:`{record_id}` CONTENT {{
+                        vector: $vector,
+                        payload: $payload
+                    }}
                     """,
                     {
                         'vector': vector,
@@ -470,14 +473,15 @@ class SurrealDBVectorClient:
             List of collection names
         """
         try:
-            # Set scope in the same request (HTTP may not persist use() across requests)
-            query = f"USE NS {self.namespace} DB {self.database}; INFO FOR DB;"
+            # Ensure we're using the correct namespace and database
+            # Call use() again to be safe (idempotent operation)
+            self.client.use(self.namespace, self.database)
+            
+            # Query without USE statement since use() handles it
+            query = "INFO FOR DB;"
             result = self.client.query(query)
-            # Multi-statement returns list; we need the INFO FOR DB result (last)
-            if isinstance(result, (list, tuple)) and len(result) >= 2:
-                result = result[-1]
-            elif isinstance(result, (list, tuple)) and len(result) == 1:
-                result = result[0]
+            
+            # Single-statement query returns dict directly (no list wrapping)
             tables = self._parse_info_for_db_result(result)
 
             if len(tables) == 0:
