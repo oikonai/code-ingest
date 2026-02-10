@@ -52,6 +52,21 @@ python -c "
 from modules import IngestionPipeline
 import sys
 import os
+import logging
+
+# Configure logging so pipeline/file_processor/batch_processor INFO logs are visible
+level_name = os.getenv('LOG_LEVEL', 'INFO').upper()
+level = getattr(logging, level_name, logging.INFO)
+logging.basicConfig(
+    level=level,
+    format='%(levelname)s: %(message)s',
+    stream=sys.stdout,
+)
+# Reduce noise from third-party libs unless DEBUG
+if level_name != 'DEBUG':
+    logging.getLogger('httpx').setLevel(logging.WARNING)
+    logging.getLogger('httpcore').setLevel(logging.WARNING)
+    logging.getLogger('openai').setLevel(logging.WARNING)
 
 try:
     pipeline = IngestionPipeline()
@@ -64,7 +79,10 @@ try:
         sys.exit(1)
     
     print('✅ Ingestion complete!')
-    print(f'   Total chunks: {stats.get(\"total_chunks\", 0)}')
+    total_chunks = stats.get('total_chunks')
+    if total_chunks is None and 'chunks_by_collection' in stats:
+        total_chunks = sum(stats['chunks_by_collection'].values())
+    print(f'   Total chunks: {total_chunks or 0}')
     print(f'   Repositories: {stats.get(\"repositories_processed\", 0)}')
     
     # Write completion status

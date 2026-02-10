@@ -60,6 +60,10 @@ services:
       # Embedding service (DeepInfra)
       - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B}
+      # Chunks per embedding request (15 for standard model; use 25–100 if using -batch model)
+      - BATCH_SIZE=${BATCH_SIZE:-15}
+      # Request timeout in seconds (standard model can be slower)
+      - EMBEDDING_TIMEOUT=${EMBEDDING_TIMEOUT:-120}
       
       # GitHub token for cloning
       - GITHUB_TOKEN=${GITHUB_TOKEN}
@@ -67,6 +71,9 @@ services:
       # Optional: Priority filter (high=only high, medium=medium+high, low/ALL=all).
       # Default medium so repos without explicit priority in config get cloned.
       - PRIORITY=${PRIORITY:-low}
+      
+      # Log level for ingestion pipeline (DEBUG, INFO, WARNING, ERROR). INFO shows file/chunk/batch progress.
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./repos:/app/repos  # Mount repos directory
       - ./config:/app/config  # Mount config

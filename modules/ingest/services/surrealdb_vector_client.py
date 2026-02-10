@@ -44,7 +44,11 @@ class SurrealDBVectorClient:
         Args:
             embedding_size: Dimension of embedding vectors (default: 4096)
         """
-        self.url = os.getenv('SURREALDB_URL', 'http://localhost:8000')
+        base_url = os.getenv('SURREALDB_URL', 'http://localhost:8000').rstrip('/')
+        # SDK expects /rpc for HTTP/WS so use() and queries are scoped to the chosen NS/DB
+        if '/rpc' not in base_url:
+            base_url = f"{base_url}/rpc"
+        self.url = base_url
         self.namespace = os.getenv('SURREALDB_NS', 'code_ingest')
         self.database = os.getenv('SURREALDB_DB', 'vectors')
         self.username = os.getenv('SURREALDB_USER', 'root')
@@ -395,23 +399,104 @@ class SurrealDBVectorClient:
             logger.error(f"❌ Failed to get collection stats: {e}")
             return {}
     
+    def _find_tables_dict(self, obj: Any, depth: int = 0) -> Optional[Dict]:
+        """Recursively find a dict that has a 'tables' key (max depth 4)."""
+        if depth > 4:
+            return None
+        if isinstance(obj, dict):
+            if "tables" in obj:
+                return obj
+            for v in obj.values():
+                found = self._find_tables_dict(v, depth + 1)
+                if found:
+                    return found
+        elif isinstance(obj, (list, tuple)):
+            for item in obj:
+                found = self._find_tables_dict(item, depth + 1)
+                if found:
+                    return found
+        return None
+
+    def _parse_info_for_db_result(self, result: Any) -> List[str]:
+        """
+        Extract table names from client.query('INFO FOR DB') result.
+        Handles dict, list-of-results, and nested shapes returned by surrealdb-py.
+        """
+        tables = []
+        db_info = None
+
+        if not result:
+            return tables
+
+        # Single dict with 'tables' (direct INFO FOR DB response)
+        if isinstance(result, dict) and "tables" in result:
+            db_info = result
+        # List of statement results (e.g. [ { "tables": {...} } ])
+        elif isinstance(result, (list, tuple)) and len(result) > 0:
+            first = result[0]
+            if isinstance(first, dict) and "tables" in first:
+                db_info = first
+            elif isinstance(first, (list, tuple)) and len(first) > 0 and isinstance(first[0], dict):
+                db_info = first[0]
+            elif isinstance(first, dict):
+                db_info = first.get("tables") and {"tables": first["tables"]} or first
+        elif isinstance(result, dict):
+            db_info = result.get(0) or result.get("result")
+
+        # Fallback: walk result to find any dict with 'tables' (handles wrapped responses)
+        if not (isinstance(db_info, dict) and "tables" in db_info):
+            db_info = self._find_tables_dict(result)
+
+        if isinstance(db_info, dict) and "tables" in db_info:
+            tbls = db_info["tables"]
+            if isinstance(tbls, dict):
+                tables = list(tbls.keys())
+            elif isinstance(tbls, (list, tuple)):
+                # SDK can return tables as list of names or list of objects
+                for x in tbls:
+                    if isinstance(x, str):
+                        tables.append(x)
+                    elif isinstance(x, dict) and ("name" in x or "table" in x):
+                        tables.append(x.get("name") or x.get("table"))
+            # else: leave tables empty
+
+        return tables
+
     def get_collections(self) -> List[str]:
         """
         List all collection (table) names.
-        
+
         Returns:
             List of collection names
         """
         try:
-            # Query all tables in the database
-            result = self.client.query("INFO FOR DB;")
-            
-            tables = []
-            if result and len(result) > 0:
-                db_info = result[0]
-                if isinstance(db_info, dict) and 'tables' in db_info:
-                    tables = list(db_info['tables'].keys())
-            
+            # Set scope in the same request (HTTP may not persist use() across requests)
+            query = f"USE NS {self.namespace} DB {self.database}; INFO FOR DB;"
+            result = self.client.query(query)
+            # Multi-statement returns list; we need the INFO FOR DB result (last)
+            if isinstance(result, (list, tuple)) and len(result) >= 2:
+                result = result[-1]
+            elif isinstance(result, (list, tuple)) and len(result) == 1:
+                result = result[0]
+            tables = self._parse_info_for_db_result(result)
+
+            if len(tables) == 0:
+                logger.warning(
+                    "get_collections: 0 tables in ns=%s db=%s (run scripts/inspect_surrealdb.py to verify)",
+                    self.namespace,
+                    self.database,
+                )
+                # Log raw shape so we can fix parsing if SDK format differs
+                if result is not None:
+                    rtype = type(result).__name__
+                    keys = list(result.keys())[:10] if isinstance(result, dict) else None
+                    length = len(result) if isinstance(result, (list, tuple)) else None
+                    logger.info(
+                        "get_collections: raw result type=%s keys=%s len=%s",
+                        rtype,
+                        keys,
+                        length,
+                    )
             return tables
         except Exception as e:
             logger.error(f"❌ Failed to get collections: {e}")

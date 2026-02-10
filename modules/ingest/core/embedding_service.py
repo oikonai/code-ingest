@@ -112,6 +112,7 @@ class EmbeddingService:
         Returns:
             List of embedding vectors, or empty list on failure
         """
+        last_error = None
         for attempt in range(max_retries):
             try:
                 if attempt == 0:
@@ -149,6 +150,7 @@ class EmbeddingService:
                 return embeddings
 
             except Exception as e:
+                last_error = e
                 logger.warning(f"⚠️ Request failed on attempt {attempt + 1}/{max_retries}: {type(e).__name__}: {e}")
 
                 if attempt < max_retries - 1:
@@ -157,7 +159,10 @@ class EmbeddingService:
                     time.sleep(wait_time)
                     continue
                 else:
-                    logger.error(f"❌ Max retries ({max_retries}) exceeded")
+                    logger.error(
+                        f"❌ Embedding batch failed after {max_retries} retries: "
+                        f"{type(last_error).__name__}: {last_error}"
+                    )
                     return []
 
         return []

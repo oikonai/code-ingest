@@ -174,6 +174,63 @@ async def health_route(request):
     return JSONResponse(body, status_code=status_code)
 
 
+# Debug endpoint: what collections does MCP see? (same SurrealDB as ingest; compare with make surrealdb-inspect)
+@mcp.custom_route("/debug/collections", methods=["GET"])
+async def debug_collections_route(request):
+    """Return list of collections and counts from the vector client. Use to verify MCP sees same DB as ingest.
+    Add ?raw=1 to include raw INFO FOR DB result (for debugging parsing)."""
+    global _vector_client
+    if not _vector_client:
+        return JSONResponse(
+            {"error": "Vector client not initialized", "collections": [], "count": 0},
+            status_code=503,
+        )
+    try:
+        raw_param = request.query_params.get("raw", "").lower() in ("1", "true", "yes")
+        names = _vector_client.get_collections()
+        details = []
+        for name in names:
+            info = _vector_client.get_collection_info(name)
+            points = 0
+            if info:
+                points = info.get("vectors_count", info.get("points_count", 0))
+            details.append({"name": name, "points": points})
+        body = {"collections": details, "count": len(names), "backend": "surrealdb"}
+        if raw_param and hasattr(_vector_client, "client"):
+            try:
+                body["_client_url"] = getattr(_vector_client, "url", None)
+                body["_client_namespace"] = getattr(_vector_client, "namespace", None)
+                body["_client_database"] = getattr(_vector_client, "database", None)
+                raw_result = _vector_client.client.query("INFO FOR DB;")
+                body["_raw_info_type"] = type(raw_result).__name__
+                if isinstance(raw_result, dict):
+                    body["_raw_info_keys"] = list(raw_result.keys())
+                    if "tables" in raw_result:
+                        tbls = raw_result["tables"]
+                        body["_raw_tables_type"] = type(tbls).__name__
+                        if isinstance(tbls, dict):
+                            body["_raw_tables_keys"] = list(tbls.keys())[:20]
+                        elif isinstance(tbls, (list, tuple)):
+                            body["_raw_tables_len"] = len(tbls)
+                            body["_raw_tables_sample"] = list(tbls)[:5] if tbls else []
+                        elif tbls is not None:
+                            body["_raw_tables_repr"] = str(tbls)[:200]
+                elif isinstance(raw_result, (list, tuple)):
+                    body["_raw_info_len"] = len(raw_result)
+                    if len(raw_result) > 0:
+                        body["_raw_first_type"] = type(raw_result[0]).__name__
+                        if isinstance(raw_result[0], dict):
+                            body["_raw_first_keys"] = list(raw_result[0].keys())
+            except Exception as raw_err:
+                body["_raw_error"] = str(raw_err)
+        return JSONResponse(body)
+    except Exception as e:
+        return JSONResponse(
+            {"error": str(e), "collections": [], "count": 0},
+            status_code=500,
+        )
+
+
 # ============================================================================
 # Module Registration
 # ============================================================================
