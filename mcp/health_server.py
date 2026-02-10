@@ -11,8 +11,59 @@ import logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 from threading import Thread
+from typing import Any, Dict, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+def get_health_status() -> Tuple[Dict[str, Any], int]:
+    """
+    Compute health status (reusable for HTTP handler or FastMCP custom route).
+
+    Returns:
+        Tuple of (response_dict, http_status_code).
+    """
+    surrealdb_ok = _check_surrealdb()
+    ingestion_complete = _check_ingestion_complete()
+    if surrealdb_ok and ingestion_complete:
+        status_code = 200
+        status = 'ready'
+    elif surrealdb_ok and not ingestion_complete:
+        status_code = 503
+        status = 'waiting_for_ingestion'
+    else:
+        status_code = 503
+        status = 'unhealthy'
+    response = {
+        'status': status,
+        'surrealdb': 'ok' if surrealdb_ok else 'unavailable',
+        'ingestion': 'complete' if ingestion_complete else 'pending',
+    }
+    return response, status_code
+
+
+def _check_surrealdb() -> bool:
+    """Check if SurrealDB is accessible."""
+    import urllib.request
+    surrealdb_url = os.getenv('SURREALDB_URL', 'http://localhost:8000')
+    try:
+        req = urllib.request.Request(f'{surrealdb_url}/health')
+        with urllib.request.urlopen(req, timeout=2) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+
+def _check_ingestion_complete() -> bool:
+    """Check if ingestion has completed."""
+    status_file = '/app/status/ingestion_complete'
+    if not os.path.exists(status_file):
+        return False
+    try:
+        with open(status_file, 'r') as f:
+            return f.read().strip() == 'complete'
+    except Exception:
+        return False
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -29,65 +80,11 @@ class HealthHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b'Not Found')
             return
-        
-        # Check SurrealDB
-        surrealdb_ok = self._check_surrealdb()
-        
-        # Check ingestion status (optional)
-        ingestion_complete = self._check_ingestion_complete()
-        
-        # Overall status
-        if surrealdb_ok and ingestion_complete:
-            status_code = 200
-            status = 'ready'
-        elif surrealdb_ok and not ingestion_complete:
-            status_code = 503
-            status = 'waiting_for_ingestion'
-        else:
-            status_code = 503
-            status = 'unhealthy'
-        
-        # Build response
-        response = {
-            'status': status,
-            'surrealdb': 'ok' if surrealdb_ok else 'unavailable',
-            'ingestion': 'complete' if ingestion_complete else 'pending'
-        }
-        
-        # Send response
+        response, status_code = get_health_status()
         self.send_response(status_code)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps(response).encode('utf-8'))
-    
-    def _check_surrealdb(self) -> bool:
-        """Check if SurrealDB is accessible."""
-        import urllib.request
-        
-        surrealdb_url = os.getenv('SURREALDB_URL', 'http://localhost:8000')
-        
-        try:
-            req = urllib.request.Request(f'{surrealdb_url}/health')
-            with urllib.request.urlopen(req, timeout=2) as response:
-                return response.status == 200
-        except Exception:
-            return False
-    
-    def _check_ingestion_complete(self) -> bool:
-        """Check if ingestion has completed."""
-        status_file = '/app/status/ingestion_complete'
-        
-        # If file doesn't exist, ingestion not complete
-        if not os.path.exists(status_file):
-            return False
-        
-        # Check file content
-        try:
-            with open(status_file, 'r') as f:
-                content = f.read().strip()
-                return content == 'complete'
-        except Exception:
-            return False
 
 
 def start_health_server(port: int = 8001, host: str = '0.0.0.0'):

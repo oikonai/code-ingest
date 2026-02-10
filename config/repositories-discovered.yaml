@@ -1,0 +1,36 @@
+repos:
+  eco-routes:
+    has_helm: false
+    helm_path: null
+    languages:
+    - typescript
+    - javascript
+    - solidity
+    - markdown
+    - yaml
+    repo_type: backend
+  eco-routes-svm:
+    has_helm: false
+    helm_path: null
+    languages:
+    - rust
+    - markdown
+    - yaml
+    repo_type: backend
+  eco-chains:
+    has_helm: false
+    helm_path: null
+    languages:
+    - typescript
+    - markdown
+    - yaml
+    repo_type: backend
+  permit3:
+    has_helm: false
+    helm_path: null
+    languages:
+    - javascript
+    - solidity
+    - markdown
+    - yaml
+    repo_type: backend

@@ -1,10 +1,9 @@
-version: '3.8'
-
 services:
   # SurrealDB - Local vector database
   surrealdb:
     image: surrealdb/surrealdb:latest
     container_name: code-ingest-surrealdb
+    user: "0"  # Run as root so /data volume is writable (image runs non-root by default)
     ports:
       - "8000:8000"
     volumes:
@@ -15,12 +14,7 @@ services:
       --user root
       --pass root
       file:/data/database.db
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+    # No healthcheck: official image is minimal (no curl/wget). Ingest and MCP entrypoints poll /health.
     networks:
       - code-ingest-network
 
@@ -33,7 +27,7 @@ services:
     container_name: code-ingest-ingestion
     depends_on:
       surrealdb:
-        condition: service_healthy
+        condition: service_started
     environment:
       - SURREALDB_URL=http://surrealdb:8000
       - SURREALDB_NS=code_ingest
@@ -49,7 +43,7 @@ services:
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       
       # Optional: Priority filter for ingestion
-      - PRIORITY=${PRIORITY:-high}
+      - PRIORITY=${PRIORITY:-low}
     volumes:
       - ./repos:/app/repos  # Mount repos directory
       - ./config:/app/config  # Mount config
@@ -66,7 +60,7 @@ services:
     container_name: code-ingest-mcp
     depends_on:
       surrealdb:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "8001:8001"  # MCP server port
     environment:
@@ -80,10 +74,11 @@ services:
       - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-8B-batch}
       
-      # Health endpoint configuration
+      # Health endpoint and MCP over HTTP (Cursor connects to http://localhost:8001/mcp)
       - DOCKER_ENV=true
       - ENABLE_HEALTH_ENDPOINT=true
       - HEALTH_PORT=8001
+      - MCP_HTTP_TRANSPORT=true
     volumes:
       - ./config:/app/config  # Mount config
       - ingest-status:/app/status:ro  # Read-only access to status

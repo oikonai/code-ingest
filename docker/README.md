@@ -173,6 +173,22 @@ docker compose logs ingest
 ### MCP health shows "waiting_for_ingestion"
 This is normal while ingestion is running. Wait for ingestion to complete.
 
+### Verifying SurrealDB collections (0 collections in MCP)
+Collections are created and filled by the **ingestion** service. You will see 0 collections until ingestion has run successfully at least once (`docker compose up` with the full stack, or `docker compose up ingest` after SurrealDB is up).
+
+To verify SurrealDB from the host (with `.env` pointing at `SURREALDB_URL=http://localhost:8000`):
+
+```bash
+make verify-surrealdb   # List all tables and vector counts
+make vector-status      # Status of configured collections (from config)
+```
+
+Or run the SurrealDB client test (creates a temporary test table):
+
+```bash
+python modules/ingest/services/surrealdb_vector_client.py
+```
+
 ### SurrealDB connection refused
 ```bash
 # Check SurrealDB health
@@ -192,8 +208,9 @@ docker compose up --build
 
 1. Start services: `docker compose up`
 2. Wait for health: `curl http://localhost:8001/health`
-3. Configure Cursor MCP settings to connect to `http://localhost:8001`
-4. MCP server will query local SurrealDB for semantic code search
+3. This project includes `.cursor/mcp.json` with **code-ingest-mcp** pointing at `http://localhost:8001/mcp`. Cursor will pick it up when you open the repo.
+4. If the server is disabled in Cursor, enable it under **Settings → Features → MCP** (URL-based servers can be off by default).
+5. MCP server will query local SurrealDB for semantic code search.
 
 ## Vector database
 

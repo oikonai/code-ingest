@@ -1,7 +1,7 @@
 # Code Ingestion System - Multi-Language Vector Database Pipeline
 # Comprehensive Makefile for ingestion capabilities
 
-.PHONY: help install deps setup venv sync test clean ingest ingest-warmup ingest-search vector-status index-check clone-repos clone-repos-medium clone-repos-all discover-repos derive-dependencies collection-cleanup collection-status repo-metadata stats-report health check-env status info up up-mcp down
+.PHONY: help install deps setup venv sync test clean ingest ingest-warmup ingest-search vector-status index-check clone-repos clone-repos-medium clone-repos-all discover-repos derive-dependencies collection-cleanup collection-status repo-metadata stats-report health check-env status info up up-mcp down test-mcp verify-surrealdb
 
 # Colors for better readability
 YELLOW := \033[33m
@@ -42,6 +42,8 @@ help:
 	@echo "  make up               Start all services (SurrealDB, ingest, MCP); full re-ingestion runs"
 	@echo "  make up-mcp           Start only SurrealDB and MCP; skip ingestion, use existing data"
 	@echo "  make down             Stop and remove containers"
+	@echo "  make test-mcp         Test code-ingest-mcp (list_collections + semantic search; requires Docker up)"
+	@echo "  make verify-surrealdb List SurrealDB tables (ensure Docker + .env SURREALDB_* pointing at localhost:8000)"
 	@echo ""
 	@echo "$(BLUE)⚙️  System Management:$(RESET)"
 	@echo "  make health           System health check (ingestion + vector search)"
@@ -207,6 +209,17 @@ up-mcp:
 
 down:
 	docker compose down
+
+test-mcp:
+	@echo "$(GREEN)Testing code-ingest-mcp at http://localhost:8001/mcp (ensure Docker is up)...$(RESET)"
+	@PYTHON=python; [ -f .venv/bin/python ] && PYTHON=.venv/bin/python; $$PYTHON scripts/test_mcp_client.py
+
+verify-surrealdb:
+	@echo "$(GREEN)Verifying SurrealDB connection and listing tables...$(RESET)"
+	@PYTHON=python; [ -f .venv/bin/python ] && PYTHON=.venv/bin/python; $$PYTHON scripts/verify_surrealdb_collections.py
+
+docker-restart: down
+	docker compose build --no-cache && docker compose up -d
 
 # Utility targets
 .PHONY: status info

@@ -179,9 +179,10 @@ async def lifespan(server: FastMCP):
         logger.info(f"📡 {SERVER_NAME} is ready to accept MCP connections")
         logger.info("=" * 80)
 
-        # Start health endpoint server (in Docker)
+        # Start health endpoint server only when NOT using HTTP transport (stdio + separate health server)
+        use_http_transport = os.getenv('MCP_HTTP_TRANSPORT', '').lower() == 'true'
         health_server = None
-        if os.getenv('DOCKER_ENV') == 'true' or os.getenv('ENABLE_HEALTH_ENDPOINT') == 'true':
+        if (os.getenv('DOCKER_ENV') == 'true' or os.getenv('ENABLE_HEALTH_ENDPOINT') == 'true') and not use_http_transport:
             try:
                 from health_server import start_health_server
                 health_port = int(os.getenv('HEALTH_PORT', '8001'))
@@ -228,6 +229,26 @@ async def lifespan(server: FastMCP):
 
 # Initialize FastMCP server with lifespan
 mcp = FastMCP(SERVER_NAME, lifespan=lifespan)
+
+
+def _register_health_route():
+    """Register /health route for HTTP transport (Docker). Uses FastMCP custom_route if available."""
+    if not hasattr(mcp, 'custom_route'):
+        return
+    try:
+        from starlette.requests import Request
+        from starlette.responses import JSONResponse
+        from health_server import get_health_status
+        import asyncio
+
+        @mcp.custom_route("/health", methods=["GET"])
+        async def health_check(request: Request):
+            # get_health_status() is sync (urllib, file I/O); run in thread to avoid blocking
+            loop = asyncio.get_event_loop()
+            response_dict, status_code = await loop.run_in_executor(None, get_health_status)
+            return JSONResponse(response_dict, status_code=status_code)
+    except Exception as e:
+        logger.warning("Could not register /health custom route: %s", e)
 
 
 # ============================================================================
@@ -326,6 +347,7 @@ def validate_environment() -> Dict[str, Any]:
         'surrealdb_url': surrealdb_url,
         'deepinfra_api_key': deepinfra_api_key,
         'embedding_base_url': embedding_base_url,
+        'embedding_endpoint': embedding_base_url,  # alias used by lifespan yield
         'embedding_model': embedding_model,
     }
 
@@ -398,10 +420,19 @@ def main():
     Main entry point for the MCP server.
 
     The lifespan context manager handles initialization and cleanup.
-    This function just starts the server.
+    When MCP_HTTP_TRANSPORT=true (e.g. in Docker), runs with HTTP transport
+    on HEALTH_PORT so Cursor can connect via http://localhost:8001/mcp
+    and /health remains available on the same port.
     """
-    # Start FastMCP server (lifespan handles initialization)
-    mcp.run()
+    use_http = os.getenv('MCP_HTTP_TRANSPORT', '').lower() == 'true'
+    health_port = int(os.getenv('HEALTH_PORT', '8001'))
+
+    if use_http:
+        _register_health_route()
+        logger.info(f"📡 MCP HTTP transport: http://0.0.0.0:{health_port}/mcp (Cursor: http://localhost:{health_port}/mcp)")
+        mcp.run(transport="http", host="0.0.0.0", port=health_port)
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":
