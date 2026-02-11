@@ -2,7 +2,7 @@
 """
 Code Ingestion MCP Server
 
-FastMCP server providing semantic code search capabilities through SurrealDB
+FastMCP server providing semantic code search capabilities through Qdrant
 vector database integration. Enables semantic search over ingested code
 repositories for Cursor IDE and other MCP-compatible AI coding assistants.
 
@@ -60,7 +60,7 @@ load_dotenv()
 SERVER_NAME = "code-ingest-mcp"
 SERVER_VERSION = "2.0.0"
 SERVER_DESCRIPTION = (
-    "Semantic code search server for ingested repositories via SurrealDB. "
+    "Semantic code search server for ingested repositories via Qdrant. "
     "Search across code collections using natural language queries."
 )
 
@@ -89,7 +89,7 @@ async def lifespan(server: FastMCP):
 
     Handles initialization and cleanup of resources:
     - Validates environment configuration
-    - Initializes SurrealDB vector backend
+    - Initializes Qdrant vector backend
     - Registers tools, prompts, and resources
     - Cleans up connections on shutdown
     """
@@ -214,7 +214,7 @@ def _register_debug_route():
                     if info:
                         points = info.get("vectors_count", info.get("points_count", 0))
                     details.append({"name": name, "points": points})
-                body = {"collections": details, "count": len(names), "backend": "surrealdb"}
+                body = {"collections": details, "count": len(names), "backend": "qdrant"}
                 if raw_param and hasattr(_vector_client, "client"):
                     try:
                         body["_client_url"] = getattr(_vector_client, "url", None)
@@ -285,8 +285,9 @@ def register_all_features():
     # Set up global state in search tools
     set_search_globals(
         _vector_client,
+        _config.get('embedding_endpoint', 'https://api.deepinfra.com/v1/openai'),
+        os.getenv('CLOUDFLARE_API_TOKEN', ''),  # Optional Cloudflare AI Gateway token
         _config.get('deepinfra_api_key'),
-        _config.get('embedding_base_url', 'https://api.deepinfra.com/v1/openai'),
         _config.get('embedding_model', 'Qwen/Qwen3-Embedding-8B'),
         _query_cache
     )
@@ -325,18 +326,13 @@ def validate_environment() -> Dict[str, Any]:
     logger.info("🔍 Validating environment configuration...")
 
     # Required environment variables
-    surrealdb_url = os.getenv('SURREALDB_URL')
+    qdrant_url = os.getenv('QDRANT_URL', 'http://qdrant:6333')  # Default to local Docker
+    qdrant_api_key = os.getenv('QDRANT_API_KEY', '')  # Optional for local Qdrant
     deepinfra_api_key = os.getenv('DEEPINFRA_API_KEY')
     
     # Optional: embedding endpoint override (defaults to DeepInfra)
     embedding_base_url = os.getenv('EMBEDDING_ENDPOINT', 'https://api.deepinfra.com/v1/openai')
     embedding_model = os.getenv('EMBEDDING_MODEL', 'Qwen/Qwen3-Embedding-8B')
-
-    if not surrealdb_url:
-        raise ValueError(
-            "SURREALDB_URL environment variable is required. "
-            "Please set it in .env file or environment."
-        )
 
     if not deepinfra_api_key:
         raise ValueError(
@@ -345,7 +341,8 @@ def validate_environment() -> Dict[str, Any]:
         )
 
     config = {
-        'surrealdb_url': surrealdb_url,
+        'qdrant_url': qdrant_url,
+        'qdrant_api_key': qdrant_api_key,
         'deepinfra_api_key': deepinfra_api_key,
         'embedding_base_url': embedding_base_url,
         'embedding_endpoint': embedding_base_url,  # alias used by lifespan yield
@@ -353,7 +350,8 @@ def validate_environment() -> Dict[str, Any]:
     }
 
     logger.info(f"✅ Environment validation successful")
-    logger.info(f"   SurrealDB URL: {surrealdb_url[:60]}...")
+    logger.info(f"   Qdrant URL: {qdrant_url}")
+    logger.info(f"   Qdrant API Key: {'*' * 20}...{qdrant_api_key[-4:] if len(qdrant_api_key) > 4 else '(not set - using local)'}")
     logger.info(f"   Embedding Base URL: {embedding_base_url}")
     logger.info(f"   DeepInfra API Key: {'*' * 20}...{deepinfra_api_key[-4:] if len(deepinfra_api_key) > 4 else '****'}")
     logger.info(f"   Embedding Model: {embedding_model}")
@@ -363,7 +361,7 @@ def validate_environment() -> Dict[str, Any]:
 
 def initialize_vector_backend(config: Dict[str, Any]) -> VectorBackend:
     """
-    Initialize SurrealDB vector backend with configuration and validate connection.
+    Initialize Qdrant vector backend with configuration and validate connection.
 
     Args:
         config: Configuration dictionary from validate_environment()
@@ -376,7 +374,7 @@ def initialize_vector_backend(config: Dict[str, Any]) -> VectorBackend:
         Exception: For other unexpected errors
     """
     try:
-        logger.info("🔗 Connecting to SurrealDB vector backend...")
+        logger.info("🔗 Connecting to Qdrant vector backend...")
 
         client = create_vector_backend()
 
@@ -390,7 +388,7 @@ def initialize_vector_backend(config: Dict[str, Any]) -> VectorBackend:
                 "Vector search will not work until ingestion is complete."
             )
 
-        logger.info(f"✅ Connected to SurrealDB - Found {collection_count} collections")
+        logger.info(f"✅ Connected to Qdrant - Found {collection_count} collections")
         for collection_name in collections:
             logger.info(f"   📦 {collection_name}")
 
@@ -403,13 +401,13 @@ def initialize_vector_backend(config: Dict[str, Any]) -> VectorBackend:
         raise
 
     except Exception as e:
-        logger.error(f"❌ Failed to connect to SurrealDB: {e}")
+        logger.error(f"❌ Failed to connect to Qdrant: {e}")
         logger.error("💡 Please check:")
-        logger.error("   - SURREALDB_URL is accessible (e.g., http://localhost:8000 or remote URL)")
-        logger.error("   - SurrealDB service is running and healthy")
-        logger.error("   - SURREALDB_NS, SURREALDB_DB are set correctly")
+        logger.error("   - QDRANT_URL is accessible (e.g., http://qdrant:6333 or https://your-cluster.cloud.qdrant.io)")
+        logger.error("   - Qdrant service is running and healthy")
+        logger.error("   - QDRANT_API_KEY is set correctly (if using Qdrant Cloud)")
         logger.exception("Stack trace:")
-        raise RuntimeError(f"SurrealDB connection failed: {e}") from e
+        raise RuntimeError(f"Qdrant connection failed: {e}") from e
 
 
 # ============================================================================

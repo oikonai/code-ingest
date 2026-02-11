@@ -5,14 +5,17 @@ echo "=================================================="
 echo "MCP Server"
 echo "=================================================="
 
-# Wait for SurrealDB to be ready
-echo "⏳ Waiting for SurrealDB..."
+# Wait for Qdrant to be ready
+echo "⏳ Waiting for Qdrant..."
 max_attempts=30
 attempt=0
 
+# Determine Qdrant URL (default to local Docker, or use cloud URL)
+QDRANT_CHECK_URL="${QDRANT_URL:-http://qdrant:6333}"
+
 while [ $attempt -lt $max_attempts ]; do
-    if curl -sf "${SURREALDB_URL}/health" > /dev/null 2>&1; then
-        echo "✅ SurrealDB is ready"
+    if curl -sf "${QDRANT_CHECK_URL}/" > /dev/null 2>&1; then
+        echo "✅ Qdrant is ready"
         break
     fi
     attempt=$((attempt + 1))
@@ -21,7 +24,7 @@ while [ $attempt -lt $max_attempts ]; do
 done
 
 if [ $attempt -eq $max_attempts ]; then
-    echo "⚠️  SurrealDB did not become healthy - continuing anyway"
+    echo "⚠️  Qdrant did not become healthy - continuing anyway"
 fi
 
 # Start MCP server with health endpoint

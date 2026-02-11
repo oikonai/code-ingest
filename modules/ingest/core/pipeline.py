@@ -338,14 +338,11 @@ class IngestionPipeline:
             elif language in ['typescript', 'javascript', 'jsx', 'tsx']:
                 lang_stats = self.file_processor.process_typescript_files(files, repo_config, language)
             elif language == 'solidity':
-                # TODO: Update to use repo_config
-                lang_stats = self.file_processor.process_solidity_files(files, repo_name)
+                lang_stats = self.file_processor.process_solidity_files(files, repo_config)
             elif language == 'documentation':
-                # TODO: Update to use repo_config
-                lang_stats = self.file_processor.process_documentation_files(files, repo_name)
+                lang_stats = self.file_processor.process_documentation_files(files, repo_config)
             elif language == 'yaml':
-                # TODO: Update to use repo_config
-                lang_stats = self.file_processor.process_yaml_files(files, repo_name)
+                lang_stats = self.file_processor.process_yaml_files(files, repo_config)
             elif language == 'terraform':
                 # TODO: Update to use repo_config
                 lang_stats = self.file_processor.process_terraform_files(files, repo_name)

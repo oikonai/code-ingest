@@ -203,6 +203,8 @@ class FileProcessor:
                             domain = self._classify_business_domain(chunk.content, chunk.file_path)
                             chunk.metadata['business_domain'] = domain
                             chunk.metadata['repo_id'] = repo_id
+                            chunk.metadata['github_url'] = repo_config.github_url
+                            chunk.metadata['repo_org'] = repo_config.github_url.split('/')[-2] if '/' in repo_config.github_url else ''
                             chunk.metadata['repo_component'] = self._extract_repo_component(
                                 file_path, repo_id
                             )
@@ -327,6 +329,8 @@ class FileProcessor:
                                 metadata={
                                     'language': language,
                                     'repo_id': repo_id,
+                                    'github_url': repo_config.github_url,
+                                    'repo_org': repo_config.github_url.split('/')[-2] if '/' in repo_config.github_url else '',
                                     'repo_component': self._extract_repo_component(file_path, repo_id),
                                     'business_domain': domain,
                                     'complexity_score': ts_chunk.metadata.get('complexity_score', 1.0),
@@ -391,17 +395,18 @@ class FileProcessor:
 
         return stats
 
-    def process_solidity_files(self, files: List[Path], repo_id: str) -> Dict[str, Any]:
+    def process_solidity_files(self, files: List[Path], repo_config: RepoConfig) -> Dict[str, Any]:
         """
         Process Solidity smart contract files in batches.
 
         Args:
             files: List of Solidity file paths
-            repo_id: Repository identifier
+            repo_config: Repository configuration with metadata
 
         Returns:
             Statistics dictionary
         """
+        repo_id = repo_config.github_url.split('/')[-1]
         logger.info(f"📂 process_solidity_files: {len(files)} files in {repo_id}")
         stats = {
             'chunks_by_collection': {},
@@ -453,6 +458,8 @@ class FileProcessor:
                                     metadata={
                                         'language': 'solidity',
                                         'repo_id': repo_id,
+                                        'github_url': repo_config.github_url,
+                                        'repo_org': repo_config.github_url.split('/')[-2] if '/' in repo_config.github_url else '',
                                         'repo_component': self._extract_repo_component(file_path, repo_id),
                                         'business_domain': 'contracts',
                                         'complexity_score': sol_chunk.metadata.get('complexity_score', 1.0),
@@ -493,8 +500,9 @@ class FileProcessor:
         logger.info(f"✅ Solidity: {total_stored} chunks stored for {repo_id}")
         return stats
 
-    def process_documentation_files(self, files: List[Path], repo_id: str) -> Dict[str, Any]:
+    def process_documentation_files(self, files: List[Path], repo_config: RepoConfig) -> Dict[str, Any]:
         """Process documentation (Markdown) files."""
+        repo_id = repo_config.github_url.split('/')[-1]
         logger.info(f"📂 process_documentation_files: {len(files)} files in {repo_id}")
         stats = {
             'chunks_by_collection': {},
@@ -518,9 +526,11 @@ class FileProcessor:
 
                 if doc_chunks:
                     logger.info(f"📄 Parsed {file_path.name}: {len(doc_chunks)} documentation chunks")
-                    # Add repo_id to each doc chunk for collection assignment
+                    # Add repo metadata to each doc chunk for collection assignment
                     for chunk in doc_chunks:
                         chunk['repo_id'] = repo_id
+                        chunk['github_url'] = repo_config.github_url
+                        chunk['repo_org'] = repo_config.github_url.split('/')[-2] if '/' in repo_config.github_url else ''
                     all_doc_chunks.extend(doc_chunks)
                 else:
                     logger.warning(f"⚠️ No chunks extracted from {file_path}")
@@ -564,8 +574,9 @@ class FileProcessor:
 
         return stats
 
-    def process_yaml_files(self, files: List[Path], repo_id: str) -> Dict[str, Any]:
+    def process_yaml_files(self, files: List[Path], repo_config: RepoConfig) -> Dict[str, Any]:
         """Process YAML and Helm files."""
+        repo_id = repo_config.github_url.split('/')[-1]
         logger.info(f"📂 process_yaml_files: {len(files)} files in {repo_id}")
         if not self.yaml_parser:
             logger.warning("⚠️ YAML parser not initialized, skipping YAML files")
@@ -613,6 +624,9 @@ class FileProcessor:
                     doc_comments=[],
                     metadata=item.to_dict()
                 )
+                # Add github_url and repo_org metadata
+                chunk.metadata['github_url'] = repo_config.github_url
+                chunk.metadata['repo_org'] = repo_config.github_url.split('/')[-2] if '/' in repo_config.github_url else ''
                 chunks.append(chunk)
             
             total_stored = self.batch_processor.stream_chunks_to_storage(

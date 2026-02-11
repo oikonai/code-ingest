@@ -1,12 +1,12 @@
 # Docker Compose Local Setup
 
-This directory contains Docker Compose configuration for running the code ingestion system locally with SurrealDB as the vector database.
+This directory contains Docker Compose configuration for running the code ingestion system locally with Qdrant as the vector database.
 
 ## Architecture
 
 ```
 ┌─────────────┐
-│  SurrealDB  │  ← Local vector database
+│   Qdrant    │  ← Local vector database with web UI
 └──────┬──────┘
        │
        ├─────► ┌──────────────┐
@@ -34,6 +34,10 @@ This directory contains Docker Compose configuration for running the code ingest
    # Edit .env and set:
    # - DEEPINFRA_API_KEY
    # - GITHUB_TOKEN (for cloning repos)
+   # 
+   # Optional: For Qdrant Cloud instead of local Docker:
+   # - QDRANT_URL (e.g., https://your-cluster.cloud.qdrant.io)
+   # - QDRANT_API_KEY
    ```
 
 2. **Start services**:
@@ -42,18 +46,18 @@ This directory contains Docker Compose configuration for running the code ingest
    ```
 
    This will:
-   - Start SurrealDB on port 8000
-   - Run ingestion (full re-ingestion: clone or refresh repos with git pull, run discovery, ingest code to SurrealDB, derive dependencies)
+   - Start Qdrant on port 6333 (with web UI on 6333/dashboard)
+   - Run ingestion (full re-ingestion: clone or refresh repos with git pull, run discovery, ingest code to Qdrant, derive dependencies)
    - Start MCP server on port 8001 with health endpoint
 
    By default every run of the stack performs a full re-ingestion so recent commits and changes in repos are reflected.
 
 ### Running without re-ingestion
 
-To use existing vector data and only run SurrealDB and the MCP server (skip ingestion):
+To use existing vector data and only run Qdrant and the MCP server (skip ingestion):
 
 ```bash
-docker compose up surrealdb mcp
+docker compose up qdrant mcp
 ```
 
 Do not start the `ingest` service. MCP will serve queries against the existing vector data; no clone, refresh, or ingestion is performed.
@@ -67,9 +71,9 @@ Do not start the `ingest` service. MCP will serve queries against the existing v
    ```json
    {
      "status": "ready",
-     "surrealdb": "ok",
+     "qdrant": "ok",
      "ingestion": "complete",
-     "backend_type": "surrealdb"
+     "backend_type": "qdrant"
    }
    ```
 
@@ -77,36 +81,42 @@ Do not start the `ingest` service. MCP will serve queries against the existing v
    ```json
    {
      "status": "waiting_for_ingestion",
-     "surrealdb": "ok",
+     "qdrant": "ok",
      "ingestion": "pending",
-     "backend_type": "surrealdb"
+     "backend_type": "qdrant"
    }
+   ```
+
+4. **Access Qdrant web UI**:
+   ```bash
+   # Open Qdrant dashboard in browser
+   open http://localhost:6333/dashboard
    ```
 
 ## Services
 
-### SurrealDB
-- **Port**: 8000
-- **Data**: Persisted in Docker volume `code-ingest-surrealdb-data`
-- **Credentials**: root/root (default)
-- **Health**: `http://localhost:8000/health`
+### Qdrant
+- **Port**: 6333 (HTTP API), 6334 (gRPC)
+- **Data**: Persisted in Docker volume `code-ingest-qdrant-data`
+- **Web UI**: `http://localhost:6333/dashboard`
+- **Health**: `http://localhost:6333/`
 
 ### Ingestion
 - **Type**: One-shot (restarts: "no")
 - When the ingest service runs it: (1) clones repos from `config/repositories.yaml` if `/app/repos` is empty, otherwise refreshes them with `git pull`; (2) runs repository discovery (Helm, languages, repo type); (3) runs the full ingestion pipeline; (4) runs derive_dependencies. Each run is a full re-ingestion with up-to-date repo content.
-- **Priority filter**: Set `PRIORITY=high|medium|low|ALL` in `.env` (default: high)
+- **Priority filter**: Set `PRIORITY=high|medium|low|ALL` in `.env` (default: low)
 - **Status file**: Writes `/app/status/ingestion_complete` when done
 - **Logs**: `docker compose logs ingest`
 
 ### MCP Server
 - **Port**: 8001 (stdio for MCP, HTTP for health)
 - **Health endpoint**: `http://localhost:8001/health`
-- **Depends on**: SurrealDB (and optionally ingestion completion)
+- **Depends on**: Qdrant (and optionally ingestion completion)
 - **Logs**: `docker compose logs mcp`
 
 ## Volumes
 
-- **surrealdb-data**: Persistent vector database storage
+- **qdrant-data**: Persistent vector database storage
 - **ingest-status**: Shared status files (ingestion completion flag)
 - **./repos**: Bind-mounted for local repo access (optional)
 - **./config**: Bind-mounted for shared configuration
@@ -118,10 +128,10 @@ Do not start the `ingest` service. MCP will serve queries against the existing v
 Control which repositories to ingest:
 
 ```bash
-# High priority only (default)
+# High priority only
 PRIORITY=high docker compose up
 
-# Medium + high
+# Medium + high (default)
 PRIORITY=medium docker compose up
 
 # All repositories
@@ -140,6 +150,21 @@ repositories:
     languages: [rust]
     priority: high
 ```
+
+### Using Qdrant Cloud
+
+To use Qdrant Cloud instead of local Docker:
+
+1. Set in `.env`:
+   ```bash
+   QDRANT_URL=https://your-cluster.cloud.qdrant.io
+   QDRANT_API_KEY=your_qdrant_api_key
+   ```
+
+2. Start services (skip local Qdrant):
+   ```bash
+   docker compose up ingest mcp
+   ```
 
 ## Stopping and Cleanup
 
@@ -167,35 +192,41 @@ docker compose logs ingest
 # Common issues:
 # - Missing GITHUB_TOKEN
 # - Missing embedding service credentials
-# - SurrealDB not ready (check healthcheck)
+# - Qdrant not ready (check healthcheck)
 ```
 
 ### MCP health shows "waiting_for_ingestion"
 This is normal while ingestion is running. Wait for ingestion to complete.
 
-### Verifying SurrealDB collections (0 collections in MCP)
-Collections are created and filled by the **ingestion** service. You will see 0 collections until ingestion has run successfully at least once (`docker compose up` with the full stack, or `docker compose up ingest` after SurrealDB is up).
+### Verifying Qdrant collections (0 collections in MCP)
+Collections are created and filled by the **ingestion** service. You will see 0 collections until ingestion has run successfully at least once (`docker compose up` with the full stack, or `docker compose up ingest` after Qdrant is up).
 
-To verify SurrealDB from the host (with `.env` pointing at `SURREALDB_URL=http://localhost:8000`):
+To verify Qdrant from the host:
 
 ```bash
-make verify-surrealdb   # List all tables and vector counts
-make vector-status      # Status of configured collections (from config)
+# Access Qdrant web UI
+open http://localhost:6333/dashboard
+
+# Or use curl
+curl http://localhost:6333/collections
 ```
 
-Or run the SurrealDB client test (creates a temporary test table):
+Or run the Qdrant client test:
 
 ```bash
-python modules/ingest/services/surrealdb_vector_client.py
+python modules/ingest/services/vector_client.py
 ```
 
-### SurrealDB connection refused
+### Qdrant connection refused
 ```bash
-# Check SurrealDB health
-curl http://localhost:8000/health
+# Check Qdrant health
+curl http://localhost:6333/
 
 # Check logs
-docker compose logs surrealdb
+docker compose logs qdrant
+
+# Check if container is running
+docker ps | grep qdrant
 ```
 
 ### Reset everything
@@ -210,8 +241,16 @@ docker compose up --build
 2. Wait for health: `curl http://localhost:8001/health`
 3. This project includes `.cursor/mcp.json` with **code-ingest-mcp** pointing at `http://localhost:8001/mcp`. Cursor will pick it up when you open the repo.
 4. If the server is disabled in Cursor, enable it under **Settings → Features → MCP** (URL-based servers can be off by default).
-5. MCP server will query local SurrealDB for semantic code search.
+5. MCP server will query local Qdrant for semantic code search.
 
-## Vector database
+## Vector Database
 
-This setup uses **SurrealDB** as the vector database. It runs in a container with data persisted in a Docker volume. No cloud vector service is required.
+This setup uses **Qdrant** as the vector database. It runs in a container with data persisted in a Docker volume. 
+
+**Features:**
+- Web UI for browsing collections and vectors
+- 4096-dimensional vectors with cosine similarity
+- Persistent storage in Docker volume
+- Optional: Switch to Qdrant Cloud by setting `QDRANT_URL` and `QDRANT_API_KEY`
+
+No cloud vector service is required for local development - the Docker Compose stack includes everything you need.

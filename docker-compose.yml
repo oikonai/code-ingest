@@ -1,61 +1,34 @@
 services:
-  # Debug: run once to log /data volume permissions. Log is written inside the
-  # surrealdb-data volume at /data/debug.log, then copied to .cursor/debug.log.
-  # Run: docker compose run --rm --profile debug debug-surrealdb-volume
-  debug-surrealdb-volume:
-    build:
-      context: .
-      dockerfile: Dockerfile.ingest
-    image: code-ingest-ingest
-    container_name: code-ingest-debug-volume
-    user: "0"
-    volumes:
-      - surrealdb-data:/data
-      - .:/workspace
-    environment:
-      - DEBUG_LOG_PATH=/data/debug.log
-      - COPY_LOG_TO=/workspace/.cursor/debug.log
-    command: ["python3", "/workspace/scripts/debug_surrealdb_volume.py"]
-    profiles:
-      - debug
-
-  # SurrealDB - Local vector database
-  # Run as root (user: "0") so the process can write to the mounted volume; the image
-  # default is UID 65532 and Docker volumes are typically root-owned (permission denied).
-  surrealdb:
-    image: surrealdb/surrealdb:latest
-    container_name: code-ingest-surrealdb
-    user: "0"  # Run as root so /data volume is writable (image runs non-root by default)
+  # Qdrant - Local vector database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: code-ingest-qdrant
     ports:
-      - "8000:8000"
+      - "6333:6333"  # HTTP API
+      - "6334:6334"  # gRPC API (optional)
     volumes:
-      - surrealdb-data:/data
-    command: >
-      start
-      --log trace
-      --user root
-      --pass root
-      file:/data/database.db
-    # No healthcheck: official image is minimal (no curl/wget). Ingest and MCP entrypoints poll /health.
+      - qdrant-data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
     networks:
       - code-ingest-network
 
   # Ingestion service - One-shot full re-ingestion (clone/refresh repos, discover, ingest, derive).
-  # To skip re-ingestion and use existing data, start only surrealdb and mcp: docker compose up surrealdb mcp
+  # To skip re-ingestion and use existing data, start only qdrant and mcp: docker compose up qdrant mcp
   ingest:
     build:
       context: .
       dockerfile: Dockerfile.ingest
     container_name: code-ingest-ingestion
     depends_on:
-      surrealdb:
+      qdrant:
         condition: service_started
     environment:
-      - SURREALDB_URL=http://surrealdb:8000
-      - SURREALDB_NS=code_ingest
-      - SURREALDB_DB=vectors
-      - SURREALDB_USER=root
-      - SURREALDB_PASS=root
+      # Qdrant configuration
+      # For local Docker: use http://qdrant:6333
+      # For Qdrant Cloud: set QDRANT_URL and QDRANT_API_KEY in .env
+      - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
       
       # Embedding service (DeepInfra)
       - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
@@ -89,16 +62,16 @@ services:
       dockerfile: Dockerfile.mcp
     container_name: code-ingest-mcp
     depends_on:
-      surrealdb:
+      qdrant:
         condition: service_started
     ports:
       - "8001:8001"  # MCP server port
     environment:
-      - SURREALDB_URL=http://surrealdb:8000
-      - SURREALDB_NS=code_ingest
-      - SURREALDB_DB=vectors
-      - SURREALDB_USER=root
-      - SURREALDB_PASS=root
+      # Qdrant configuration
+      # For local Docker: use http://qdrant:6333
+      # For Qdrant Cloud: set QDRANT_URL and QDRANT_API_KEY in .env
+      - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
       
       # Embedding service (DeepInfra)
       - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
@@ -126,8 +99,8 @@ services:
       start_period: 30s
 
 volumes:
-  surrealdb-data:
-    name: code-ingest-surrealdb-data
+  qdrant-data:
+    name: code-ingest-qdrant-data
   ingest-status:
     name: code-ingest-status
 

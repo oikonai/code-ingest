@@ -145,6 +145,8 @@ class StorageManager:
                 "language": language,
                 "repo_id": chunk.metadata.get('repo_id', 'unknown'),
                 "repo_component": chunk.metadata.get('repo_component', 'unknown'),
+                "github_url": chunk.metadata.get('github_url', ''),
+                "repo_org": chunk.metadata.get('repo_org', ''),
                 "start_line": chunk.start_line,
                 "end_line": chunk.end_line,
                 
@@ -267,6 +269,8 @@ class StorageManager:
                     'language': 'documentation',
                     'repo_id': doc_chunk.get('repo_id', 'unknown'),
                     'repo_component': doc_chunk.get('repo_component', 'documentation'),
+                    'github_url': doc_chunk.get('github_url', ''),
+                    'repo_org': doc_chunk.get('repo_org', ''),
                     'business_domain': doc_chunk.get('business_domain', 'general'),
                     'service_type': doc_chunk.get('service_type'),
                     'doc_type': doc_chunk.get('doc_type', 'general'),

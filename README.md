@@ -12,7 +12,7 @@ A production-ready code ingestion pipeline that:
 - **Clones** GitHub repositories
 - **Parses** multi-language codebases (Rust, TypeScript, Solidity, Documentation)
 - **Embeds** code chunks using state-of-the-art embedding models
-- **Stores** vectors in Qdrant or SurrealDB for semantic search
+- **Stores** vectors in Qdrant for semantic search
 - **Monitors** ingestion quality and performance
 
 ### Key Features
@@ -20,8 +20,8 @@ A production-ready code ingestion pipeline that:
 - **📂 Multi-Repository Support** - Clone and ingest multiple repos with priority-based processing
 - **🔍 Multi-Language Parsing** - AST-based parsing for Rust, TypeScript, Solidity, and Markdown
 - **🧠 Semantic Embeddings** - Qwen3-Embedding-8B (4096D) via DeepInfra
-- **💾 Vector Storage** - Qdrant (cloud) or SurrealDB (local) with language-specific collections
-- **🐳 Docker Compose** - Complete local setup with SurrealDB for development
+- **💾 Vector Storage** - Qdrant with language-specific collections (local Docker or cloud)
+- **🐳 Docker Compose** - Complete local setup with Qdrant for development
 - **🔎 Cross-Language Search** - Semantic search across all ingested codebases
 - **📊 Comprehensive Monitoring** - Statistics, health checks, and quality validation
 - **🔄 Checkpoint Resume** - Resume interrupted ingestion from last successful state
@@ -29,7 +29,7 @@ A production-ready code ingestion pipeline that:
 
 ## 🚀 Quick Start
 
-The primary way to run the code ingestion system is with **Docker Compose**. You get SurrealDB, ingestion, and the MCP server in one command.
+The primary way to run the code ingestion system is with **Docker Compose**. You get Qdrant, ingestion, and the MCP server in one command.
 
 ### Prerequisites
 
@@ -50,19 +50,22 @@ cp .env.example .env
 #   DEEPINFRA_API_KEY=your_key
 #   GITHUB_TOKEN=your_pat_token   # for private repos
 
-# Start all services (SurrealDB + Ingestion + MCP)
+# Start all services (Qdrant + Ingestion + MCP)
 docker compose up
 ```
 
-This starts **SurrealDB** (port 8000), runs a **full ingestion** (clone/refresh repos, parse, embed, store), then brings up the **MCP server** (port 8001). When ready:
+This starts **Qdrant** (port 6333), runs a **full ingestion** (clone/refresh repos, parse, embed, store), then brings up the **MCP server** (port 8001). When ready:
 
 ```bash
 # Check health
 curl http://localhost:8001/health
+
+# Access Qdrant dashboard
+open http://localhost:6333/dashboard
 ```
 
 **Services**:
-- **SurrealDB** (8000): Local vector database
+- **Qdrant** (6333): Local vector database with web UI
 - **Ingestion**: One-shot full re-ingestion, then exits
 - **MCP Server** (8001): Query interface and health endpoint
 
@@ -70,7 +73,7 @@ See [docker/README.md](docker/README.md) for options (e.g. run without re-ingest
 
 ### Alternative: Local Python
 
-To run without Docker (e.g. with Qdrant or a remote SurrealDB):
+To run without Docker (e.g. with Qdrant Cloud):
 
 ```bash
 # Clone and setup
@@ -78,7 +81,7 @@ git clone git@github.com:oikonai/code-ingest.git
 cd code-ingest
 make setup
 
-# Configure .env (Qdrant or SurrealDB, DeepInfra, GitHub token)
+# Configure .env (Qdrant, DeepInfra, GitHub token)
 cp .env.example .env
 # Edit .env, then:
 source .venv/bin/activate
@@ -101,31 +104,16 @@ The system supports two vector database backends:
 **For cloud deployment or managed vector database:**
 
 ```bash
-# .env configuration
-VECTOR_BACKEND=qdrant
-QDRANT_URL=https://your-qdrant-instance.qdrant.io
+# .env configuration for Qdrant Cloud (optional)
+# If not set, uses local Docker Qdrant instance
+QDRANT_URL=https://your-cluster.cloud.qdrant.io
 QDRANT_API_KEY=your_qdrant_api_key
 ```
 
-**Advantages**: Managed service, cloud-scale, no local infrastructure
-
-### SurrealDB (Local/Docker)
-
-**For local development or self-hosted deployment:**
-
-```bash
-# .env configuration
-VECTOR_BACKEND=surrealdb
-SURREALDB_URL=http://localhost:8000
-SURREALDB_NS=code_ingest
-SURREALDB_DB=vectors
-SURREALDB_USER=root
-SURREALDB_PASS=root
-```
-
-**Advantages**: No cloud costs, full data control, works offline, Docker Compose support
-
-**Switching backends**: Simply change `VECTOR_BACKEND` in your `.env` file. Both use the same ingestion pipeline and MCP server.
+**Deployment Options**:
+- **Local Docker** (default): No configuration needed, uses `http://qdrant:6333`
+- **Qdrant Cloud**: Set `QDRANT_URL` and `QDRANT_API_KEY` in `.env`
+- **Local Python**: Set `QDRANT_URL=http://localhost:6333` (no API key needed)
 
 ## ⚙️ Configuring Repositories
 
@@ -206,7 +194,7 @@ code-ingest/
 │       ├── core/
 │       │   ├── 🔄 pipeline.py        # Multi-language ingestion orchestrator
 │       │   ├── ⚙️ config.py          # Repository and ingestion configuration
-│       │   ├── 🔗 vector_backend.py  # Vector backend abstraction (Qdrant/SurrealDB)
+│       │   ├── 🔗 vector_backend.py  # Vector backend abstraction (Qdrant)
 │       │   ├── 🔗 embedding_service.py # Embedding generation (DeepInfra)
 │       │   ├── 📦 batch_processor.py  # Concurrent batch processing
 │       │   ├── 💾 storage_manager.py  # Vector storage management
@@ -222,7 +210,6 @@ code-ingest/
 │       │   └── 🏗️ terraform_parser.py   # Terraform infrastructure
 │       ├── services/
 │       │   ├── 🔗 vector_client.py       # Qdrant database client
-│       │   ├── 🔗 surrealdb_vector_client.py # SurrealDB database client
 │       │   ├── 🔍 enhanced_ranking.py    # Advanced search ranking
 │       │   └── ✅ quality_validator.py   # Code quality validation
 │       ├── scripts/
@@ -300,7 +287,7 @@ flowchart LR
 1. **📂 Repository Manager** - Clones and manages GitHub repositories with priority-based selection
 2. **🔍 Language Parsers** - AST-based parsing for Rust, TypeScript, Solidity, Documentation
 3. **🧠 Embedding Service** - State-of-the-art embeddings (Qwen3-Embedding-8B, 4096D) via DeepInfra
-4. **💾 Vector Storage** - Qdrant or SurrealDB with language-specific collections
+4. **💾 Vector Storage** - Qdrant with language-specific collections
 5. **🔎 Search Engine** - Cross-language semantic search with enhanced ranking
 6. **📊 Monitoring** - Health checks, statistics, and quality validation
 
@@ -317,24 +304,19 @@ flowchart LR
 
 ### Environment Variables
 
-**Docker Compose** (default): Set `DEEPINFRA_API_KEY` and `GITHUB_TOKEN` in `.env`; SurrealDB is configured automatically in the stack.
+**Docker Compose** (default): Set `DEEPINFRA_API_KEY` and `GITHUB_TOKEN` in `.env`; Qdrant is configured automatically in the stack.
 
-**Local Python** (Qdrant or SurrealDB):
+**Local Python** or **Qdrant Cloud**:
 
 ```env
-# Vector backend: qdrant | surrealdb
-VECTOR_BACKEND=qdrant
-
-# For Qdrant
-QDRANT_URL=https://your-qdrant-instance.qdrant.io
+# Qdrant configuration (optional - uses local Docker by default)
+# For Qdrant Cloud:
+QDRANT_URL=https://your-cluster.cloud.qdrant.io
 QDRANT_API_KEY=your_qdrant_api_key
 
-# For SurrealDB (local)
-SURREALDB_URL=http://localhost:8000
-SURREALDB_NS=code_ingest
-SURREALDB_DB=vectors
-SURREALDB_USER=root
-SURREALDB_PASS=root
+# For local Python (outside Docker):
+QDRANT_URL=http://localhost:6333
+# QDRANT_API_KEY not needed for local
 
 # Embedding (required for both)
 DEEPINFRA_API_KEY=your_deepinfra_key   # https://deepinfra.com

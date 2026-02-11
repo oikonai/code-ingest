@@ -2,7 +2,7 @@
 Health HTTP endpoint for MCP server.
 
 Provides a simple HTTP health check endpoint that can be polled to verify:
-1. SurrealDB is accessible
+1. Qdrant is accessible
 2. Ingestion has completed (optional)
 """
 
@@ -23,12 +23,12 @@ def get_health_status() -> Tuple[Dict[str, Any], int]:
     Returns:
         Tuple of (response_dict, http_status_code).
     """
-    surrealdb_ok = _check_surrealdb()
+    qdrant_ok = _check_qdrant()
     ingestion_complete = _check_ingestion_complete()
-    if surrealdb_ok and ingestion_complete:
+    if qdrant_ok and ingestion_complete:
         status_code = 200
         status = 'ready'
-    elif surrealdb_ok and not ingestion_complete:
+    elif qdrant_ok and not ingestion_complete:
         status_code = 503
         status = 'waiting_for_ingestion'
     else:
@@ -36,18 +36,20 @@ def get_health_status() -> Tuple[Dict[str, Any], int]:
         status = 'unhealthy'
     response = {
         'status': status,
-        'surrealdb': 'ok' if surrealdb_ok else 'unavailable',
+        'qdrant': 'ok' if qdrant_ok else 'unavailable',
+        'backend_type': 'qdrant',
         'ingestion': 'complete' if ingestion_complete else 'pending',
     }
     return response, status_code
 
 
-def _check_surrealdb() -> bool:
-    """Check if SurrealDB is accessible."""
+def _check_qdrant() -> bool:
+    """Check if Qdrant is accessible."""
     import urllib.request
-    surrealdb_url = os.getenv('SURREALDB_URL', 'http://localhost:8000')
+    qdrant_url = os.getenv('QDRANT_URL', 'http://qdrant:6333')
     try:
-        req = urllib.request.Request(f'{surrealdb_url}/health')
+        # Qdrant root endpoint returns version info
+        req = urllib.request.Request(f'{qdrant_url}/')
         with urllib.request.urlopen(req, timeout=2) as response:
             return response.status == 200
     except Exception:
