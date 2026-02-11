@@ -75,9 +75,9 @@ def _list_collections_impl(collection_type: Optional[str] = None) -> dict:
             if not info:
                 continue
             
-            # Handle SurrealDB response format
-            points_count = info.get('vectors_count', info.get('points_count', 0))
-            status = info.get('status', 'unknown')
+            # Access Qdrant CollectionInfo attributes directly
+            points_count = info.points_count if hasattr(info, 'points_count') else 0
+            status = info.status if hasattr(info, 'status') else 'unknown'
             
             collection_data = {
                 'name': collection_name,
@@ -256,17 +256,28 @@ def register_tools(mcp: FastMCP):
             if not info:
                 raise NotFoundError(f"Collection '{collection_name}' not found")
 
-            # Extract stats from SurrealDB response format
-            points_count = info.get('vectors_count', info.get('points_count', 0))
-            status = info.get('status', 'unknown')
+            # Access Qdrant CollectionInfo attributes directly
+            points_count = info.points_count if hasattr(info, 'points_count') else 0
+            status = info.status if hasattr(info, 'status') else 'unknown'
+            segments_count = info.segments_count if hasattr(info, 'segments_count') else 0
+            
+            # Get vector config from CollectionInfo
+            vector_size = 4096  # Default for Qwen3-Embedding-8B
+            distance = 'Cosine'
+            if hasattr(info, 'config') and info.config:
+                if hasattr(info.config, 'params') and info.config.params:
+                    if hasattr(info.config.params, 'vectors'):
+                        vectors_config = info.config.params.vectors
+                        vector_size = vectors_config.size if hasattr(vectors_config, 'size') else vector_size
+                        distance = vectors_config.distance if hasattr(vectors_config, 'distance') else distance
             
             result = {
                 'name': collection_name,
                 'status': status.value if hasattr(status, 'value') else str(status),
                 'points_count': points_count,
-                'segments_count': info.get('segments_count', 0),
-                'vector_size': info.get('config', {}).get('vector_size', info.get('embedding_size')),
-                'distance': info.get('config', {}).get('distance_metric', 'cosine')
+                'segments_count': segments_count,
+                'vector_size': vector_size,
+                'distance': distance.value if hasattr(distance, 'value') else str(distance)
             }
 
             # Add schema information if available

@@ -70,7 +70,6 @@ logger.info(f"📝 {SERVER_DESCRIPTION}")
 # Global state for sharing between modules (initialized in lifespan)
 _vector_client: Optional[VectorBackend] = None
 _embedding_endpoint: Optional[str] = None
-_cloudflare_api_token: Optional[str] = None
 _config: Optional[Dict[str, Any]] = None
 _repo_cache: Dict[str, Any] = {}
 _repo_cache_timestamp: Optional[float] = None
@@ -93,7 +92,7 @@ async def lifespan(server: FastMCP):
     - Registers tools, prompts, and resources
     - Cleans up connections on shutdown
     """
-    global _vector_client, _embedding_endpoint, _cloudflare_api_token, _config
+    global _vector_client, _embedding_endpoint, _config
 
     logger.info("=" * 80)
     logger.info(f"🚀 Starting {SERVER_NAME} v{SERVER_VERSION}")
@@ -286,7 +285,6 @@ def register_all_features():
     set_search_globals(
         _vector_client,
         _config.get('embedding_endpoint', 'https://api.deepinfra.com/v1/openai'),
-        os.getenv('CLOUDFLARE_API_TOKEN', ''),  # Optional Cloudflare AI Gateway token
         _config.get('deepinfra_api_key'),
         _config.get('embedding_model', 'Qwen/Qwen3-Embedding-8B'),
         _query_cache

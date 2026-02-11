@@ -100,8 +100,7 @@ def search_across_languages(
 
 **Features:**
 - Qwen3-Embedding-8B (4096D)
-- Cloudflare AI Gateway + DeepInfra backend
-- Modal TEI backend (alternative)
+- DeepInfra API backend (direct connection)
 - Batch processing support
 - Automatic retry on transient failures
 
