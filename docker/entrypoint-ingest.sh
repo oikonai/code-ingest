@@ -14,10 +14,20 @@ attempt=0
 QDRANT_CHECK_URL="${QDRANT_URL:-http://qdrant:6333}"
 
 while [ $attempt -lt $max_attempts ]; do
-    if curl -sf "${QDRANT_CHECK_URL}/" > /dev/null 2>&1; then
-        echo "✅ Qdrant is ready"
-        break
+    # Try connection with API key if provided (for Qdrant Cloud)
+    if [ -n "${QDRANT_API_KEY}" ]; then
+        if curl -sf -H "api-key: ${QDRANT_API_KEY}" "${QDRANT_CHECK_URL}/" > /dev/null 2>&1; then
+            echo "✅ Qdrant is ready"
+            break
+        fi
+    else
+        # No API key - try without auth (for local Docker Qdrant)
+        if curl -sf "${QDRANT_CHECK_URL}/" > /dev/null 2>&1; then
+            echo "✅ Qdrant is ready"
+            break
+        fi
     fi
+    
     attempt=$((attempt + 1))
     echo "   Attempt $attempt/$max_attempts - waiting 2s..."
     sleep 2
