@@ -417,9 +417,12 @@ def main():
     Main entry point for the MCP server.
 
     The lifespan context manager handles initialization and cleanup.
-    When MCP_HTTP_TRANSPORT=true (e.g. in Docker), runs with HTTP transport
-    on HEALTH_PORT so Cursor can connect via http://localhost:8001/mcp
+    When MCP_HTTP_TRANSPORT=true (e.g. in Docker/Railway), runs with HTTP transport
+    on HEALTH_PORT so clients can connect via http://your-host:8001/mcp
     and /health remains available on the same port.
+    
+    For cloud deployments (Railway, Render, etc.), MUST set MCP_HTTP_TRANSPORT=true
+    since stdio transport requires an active stdin connection that cloud platforms don't provide.
     """
     use_http = os.getenv('MCP_HTTP_TRANSPORT', '').lower() == 'true'
     health_port = int(os.getenv('HEALTH_PORT', '8001'))
@@ -430,6 +433,7 @@ def main():
         logger.info(f"📡 MCP HTTP transport: http://0.0.0.0:{health_port}/mcp (Cursor: http://localhost:{health_port}/mcp)")
         mcp.run(transport="http", host="0.0.0.0", port=health_port)
     else:
+        logger.info("📡 Starting MCP server in stdio mode (for local Cursor connections)")
         mcp.run()
 
 

@@ -82,13 +82,14 @@ Collection names are defined in `config/collections.yaml` (shared with the inges
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SURREALDB_URL` | Yes | - | SurrealDB URL (e.g. `http://localhost:8000` or `http://surrealdb:8000` in Docker) |
-| `SURREALDB_NS` | No | `code_ingest` | SurrealDB namespace |
-| `SURREALDB_DB` | No | `vectors` | SurrealDB database |
+| `QDRANT_URL` | Yes | `http://qdrant:6333` | Qdrant URL (local: `http://qdrant:6333`, cloud: `https://xxx.cloud.qdrant.io:6333`) |
+| `QDRANT_API_KEY` | For Cloud | - | Qdrant API key (required for Qdrant Cloud, optional for local) |
 | `DEEPINFRA_API_KEY` | Yes | - | DeepInfra API key (for embeddings) |
 | `EMBEDDING_MODEL` | No | `Qwen/Qwen3-Embedding-8B` | Embedding model |
 | `EMBEDDING_ENDPOINT` | No | `https://api.deepinfra.com/v1/openai` | DeepInfra API base URL (optional override) |
 | `COLLECTIONS_CONFIG` | No | `config/collections.yaml` | Path to collections config |
+| `MCP_HTTP_TRANSPORT` | For Cloud | `false` | **CRITICAL for cloud deployment**: Set to `true` for Railway/Render/etc. |
+| `HEALTH_PORT` | No | `8001` | HTTP server port (when `MCP_HTTP_TRANSPORT=true`) |
 
 ### Collections Config
 
@@ -118,7 +119,44 @@ default_collection: code_rust  # suffix
 
 **Why share this config?** The ingestion pipeline writes to these collections; the MCP server searches them. Keeping them in sync prevents "collection not found" errors.
 
-## Usage with Cursor IDE
+## Cloud Deployment (Railway, Render, etc.)
+
+**⚠️ CRITICAL:** When deploying to cloud platforms (Railway, Render, Fly.io, etc.), you **MUST** set `MCP_HTTP_TRANSPORT=true` in environment variables.
+
+Cloud platforms don't provide persistent stdin/stdout connections. The MCP server defaults to `stdio` mode, which requires an active stdin connection. Without it, the server will initialize successfully then immediately exit.
+
+### Quick Guide
+
+1. **Set environment variables** in your cloud platform:
+   ```bash
+   MCP_HTTP_TRANSPORT=true          # CRITICAL - switches to HTTP mode
+   QDRANT_URL=https://xxx.cloud.qdrant.io:6333
+   QDRANT_API_KEY=your_qdrant_key
+   DEEPINFRA_API_KEY=your_deepinfra_key
+   HEALTH_PORT=8001
+   ```
+
+2. **Deploy using `Dockerfile.mcp`**
+
+3. **Verify deployment:**
+   ```bash
+   curl https://your-cloud-url.com/health
+   ```
+
+4. **Connect from Cursor:**
+   ```json
+   {
+     "mcpServers": {
+       "code-ingest-mcp": {
+         "url": "https://your-cloud-url.com/mcp"
+       }
+     }
+   }
+   ```
+
+📖 **Complete guide:** See [docs/RAILWAY_DEPLOYMENT.md](../docs/RAILWAY_DEPLOYMENT.md) for detailed Railway deployment instructions.
+
+## Usage with Cursor IDE (Local Development)
 
 ### Option A: Docker Compose (recommended — use the running MCP container)
 
@@ -126,7 +164,7 @@ Run the stack with `docker compose up`; the MCP server listens over HTTP on port
 
 1. **Start the stack:**
    ```bash
-   docker compose up -d surrealdb mcp
+   docker compose up -d qdrant mcp
    ```
 
 2. **Use the project MCP config**  
@@ -156,11 +194,11 @@ If you prefer Cursor to start its own MCP container via a command instead of a U
   }
 }
 ```
-Open the **code-ingest** folder as the workspace so the command runs in the project root. SurrealDB must be running (`docker compose up -d surrealdb`).
+Open the **code-ingest** folder as the workspace so the command runs in the project root. Qdrant must be running (`docker compose up -d qdrant`).
 
-### Option B: Local Python (SurrealDB on localhost)
+### Option B: Local Python (Qdrant on localhost)
 
-If SurrealDB is reachable at `http://localhost:8000` and you have dependencies in `mcp/` installed:
+If Qdrant is reachable at `http://localhost:6333` and you have dependencies in `mcp/` installed:
 
 ```json
 {
