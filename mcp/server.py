@@ -208,10 +208,8 @@ def _register_debug_route():
                 names = _vector_client.get_collections()
                 details = []
                 for name in names:
-                    info = _vector_client.get_collection_info(name)
-                    points = 0
-                    if info:
-                        points = info.get("vectors_count", info.get("points_count", 0))
+                    stats = _vector_client.get_collection_stats(name)
+                    points = stats.get("vectors_count") or stats.get("points_count", 0)
                     details.append({"name": name, "points": points})
                 body = {"collections": details, "count": len(names), "backend": "qdrant"}
                 if raw_param and hasattr(_vector_client, "client"):

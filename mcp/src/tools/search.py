@@ -159,7 +159,7 @@ async def _semantic_search_impl(
         result_dict = {
             'query': query,
             'collection': collection_name,
-            'results_count': len(results),
+            'count': len(results),
             'results': results,
             'parameters': {
                 'limit': limit,
@@ -264,9 +264,9 @@ def register_tools(mcp: FastMCP):
                     score_threshold=score_threshold
                 )
                 results[query] = result
-                total_results += result.get('results_count', 0)
+                total_results += result.get('count', 0)
             except Exception as e:
-                results[query] = {'error': str(e), 'results_count': 0}
+                results[query] = {'error': str(e), 'count': 0}
 
         return {
             'batch_size': len(queries),
@@ -345,16 +345,16 @@ def register_tools(mcp: FastMCP):
                     score_threshold=score_threshold
                 )
                 results[collection] = result
-                total_results += result.get('results_count', 0)
+                total_results += result.get('count', 0)
                 successful_searches += 1
-                logger.debug(f"   ✓ {collection}: {result.get('results_count', 0)} results")
+                logger.debug(f"   ✓ {collection}: {result.get('count', 0)} results")
             except NotFoundError as e:
                 # Collection doesn't exist
                 logger.warning(f"   ✗ {collection}: Collection not found - {e}")
                 results[collection] = {
                     'error': f"Collection not found: {str(e)}",
                     'error_type': 'not_found',
-                    'results_count': 0
+                    'count': 0
                 }
                 failed_searches += 1
             except ToolError as e:
@@ -363,7 +363,7 @@ def register_tools(mcp: FastMCP):
                 results[collection] = {
                     'error': str(e),
                     'error_type': 'tool_error',
-                    'results_count': 0
+                    'count': 0
                 }
                 failed_searches += 1
             except Exception as e:
@@ -372,7 +372,7 @@ def register_tools(mcp: FastMCP):
                 results[collection] = {
                     'error': str(e),
                     'error_type': 'unexpected',
-                    'results_count': 0
+                    'count': 0
                 }
                 failed_searches += 1
 
